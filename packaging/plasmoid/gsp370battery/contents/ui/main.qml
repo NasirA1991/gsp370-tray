@@ -12,6 +12,8 @@ PlasmoidItem {
 
     property int percent: -1
     property bool busy: false
+    property bool darkPanel: true
+    readonly property color labelColor: root.darkPanel ? "#f5f7fa" : "#1c1e22"
 
     Plasmoid.title: "GSP 370 Battery"
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
@@ -35,6 +37,7 @@ PlasmoidItem {
             anchors.centerIn: parent
             visible: root.percent >= 0
             text: visible ? root.percent + "%" : ""
+            color: root.labelColor
         }
 
         MouseArea {
@@ -50,6 +53,22 @@ PlasmoidItem {
         PlasmaComponents3.Label {
             anchors.centerIn: parent
             text: root.percent >= 0 ? i18n("GSP 370: %1%", root.percent) : i18n("GSP 370: headset off")
+            color: root.labelColor
+        }
+    }
+
+    P5Support.DataSource {
+        id: themeSource
+        engine: "executable"
+        connectedSources: []
+        onNewData: (source, data) => {
+            const output = String(data["stdout"] ?? "").trim();
+            const channels = output.split(",").map(part => Number(part.trim()));
+            if (channels.length >= 3 && channels.slice(0, 3).every(Number.isFinite)) {
+                const luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+                root.darkPanel = luminance < 140;
+            }
+            themeSource.disconnectSource(source);
         }
     }
 
@@ -76,6 +95,10 @@ PlasmoidItem {
         running: true
         triggeredOnStart: true
         onTriggered: root.refresh()
+    }
+
+    Component.onCompleted: {
+        themeSource.connectSource("kreadconfig6 --file kdeglobals --group Colors:Window --key BackgroundNormal");
     }
 
     function refresh() {

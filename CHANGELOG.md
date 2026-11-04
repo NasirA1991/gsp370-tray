@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.1 — 2026-11-04
+
+- Fixed the Plasma widget's text colour: it now follows the KDE light/dark
+  background instead of falling back to black.
+
 ## 2.1.0 — 2026-11-04
 
 - Added an optional KDE Plasma panel widget that renders the battery as
