@@ -36,6 +36,20 @@ const DIGITS5: [[u8; 7]; 10] = [
     [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100],
 ];
 
+// Segment bits: A B C D E F G.
+const SEGMENTS: [u8; 10] = [
+    0b1111110, // 0 ABCDEF
+    0b0110000, // 1 BC
+    0b1101101, // 2 ABGED
+    0b1111001, // 3 ABGCD
+    0b0110011, // 4 FGBC
+    0b1011011, // 5 AFGCD
+    0b1011111, // 6 AFGECD
+    0b1110000, // 7 ABC
+    0b1111111, // 8
+    0b1111011, // 9 ABCDFG
+];
+
 struct TextMask {
     size: u32,
     alpha: Vec<f32>,
@@ -75,22 +89,48 @@ impl TextMask {
             return Some(Self { size, alpha });
         }
 
+        if size <= 24 {
+            // One-pixel seven-segment digits for 22-24 px.  These are larger
+            // than the 5x7 face but still thin, and they stay sharp because
+            // they are copied pixel-for-pixel below.
+            let glyphs: Vec<u8> = label
+                .bytes()
+                .map(|b| SEGMENTS[(b - b'0') as usize])
+                .collect();
+            let units = glyphs.len() * 7 + glyphs.len().saturating_sub(1);
+            if units > size as usize {
+                return None;
+            }
+            let left = (size as usize - units) / 2;
+            let top = (size as usize - 10) / 2;
+            let mut alpha = vec![0.0f32; (size * size) as usize];
+            for (index, pattern) in glyphs.iter().enumerate() {
+                let dx = left + index * 8;
+                let mut put = |x: usize, y: usize| {
+                    let px = dx + x;
+                    let py = top + y;
+                    if px < size as usize && py < size as usize {
+                        alpha[py * size as usize + px] = 1.0;
+                    }
+                };
+                if pattern & 0b1000000 != 0 { for x in 1..=5 { put(x, 0); } } // A
+                if pattern & 0b0100000 != 0 { for y in 1..=4 { put(6, y); } } // B
+                if pattern & 0b0010000 != 0 { for y in 5..=8 { put(6, y); } } // C
+                if pattern & 0b0001000 != 0 { for x in 1..=5 { put(x, 9); } } // D
+                if pattern & 0b0000100 != 0 { for y in 5..=8 { put(0, y); } } // E
+                if pattern & 0b0000010 != 0 { for y in 1..=4 { put(0, y); } } // F
+                if pattern & 0b0000001 != 0 { for x in 1..=5 { put(x, 4); } } // G
+            }
+            return Some(Self { size, alpha });
+        }
+
         let font = FontRef::try_from_slice(FONT_BYTES).ok()?;
         let digit_count = label.len();
-        let compact = size <= 24;
         let font_size = size as f32
-            * if compact {
-                match digit_count {
-                    1 => 0.80,
-                    2 => 0.70,
-                    _ => 0.52,
-                }
-            } else {
-                match digit_count {
-                    1 => 0.52,
-                    2 => 0.46,
-                    _ => 0.36,
-                }
+            * match digit_count {
+                1 => 0.52,
+                2 => 0.46,
+                _ => 0.36,
             };
         let scale = PxScale::from(font_size);
         let scaled = font.as_scaled(scale);
@@ -301,7 +341,7 @@ fn render(size: i32, state: TrayState, battery: Option<u8>, text_color: [u8; 3])
     // The 16 px bitmap face is deliberately pixel-aligned.  Supersampling a
     // one-pixel stroke would average it into grey, so copy those pixels
     // directly instead.
-    if size <= 18 {
+    if size <= 24 {
         if let Some(mask) = text.as_ref() {
             for py in 0..size {
                 for px in 0..size {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.5 — 2026-11-04
+
+- Fixed blurry 22/24 px digits by using a crisp one-pixel seven-segment face
+  at those sizes, which are the sizes KDE's tray actually requests.
+- Kept the transparent, light/dark adaptive text.
+
 ## 2.0.4 — 2026-11-04
 
 - Removed the black circular icon plate; the tray icon now has a transparent
