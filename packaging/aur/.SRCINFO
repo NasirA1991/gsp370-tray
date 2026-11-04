@@ -1,6 +1,6 @@
 pkgbase = gsp370-tray
-	pkgdesc = Tiny StatusNotifierItem tray for the Sennheiser/EPOS GSP 370 (battery and sidetone)
-	pkgver = 2.0.2
+	pkgdesc = Tray and Plasma widget for the Sennheiser/EPOS GSP 370 (battery and sidetone)
+	pkgver = 2.1.0
 	pkgrel = 1
 	url = https://github.com/NasirA1991/gsp370-tray
 	install = gsp370-tray.install
@@ -12,8 +12,9 @@ pkgbase = gsp370-tray
 	depends = gcc-libs
 	depends = glibc
 	optdepends = libnotify: low-battery notifications
+	optdepends = plasma-workspace: KDE Plasma panel widget
 	options = !debug
-	source = gsp370-tray-2.0.2-source.tar.gz::https://github.com/NasirA1991/gsp370-tray/releases/download/v2.0.2/gsp370-tray-2.0.2-source.tar.gz
-	sha256sums = f031454a3e3056ad4978c87e0e5cefa8de81d50596b291b3b969262b51ad875c
+	source = gsp370-tray-2.1.0-source.tar.gz::https://github.com/NasirA1991/gsp370-tray/releases/download/v2.1.0/gsp370-tray-2.1.0-source.tar.gz
+	sha256sums = 1a4ed37df30f08e3253eea566cbef3b8bde4feb467ebeba675ef04660d932552
 
 pkgname = gsp370-tray
