@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.2 — 2026-11-04
+
+- Added the Plasma 6 compatibility metadata key so the widget is accepted by
+  Plasma's Add Widgets dialog.
+
 ## 2.1.1 — 2026-11-04
 
 - Fixed the Plasma widget's text colour: it now follows the KDE light/dark

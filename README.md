@@ -28,7 +28,7 @@ firmware flashing is deliberately unsupported.
 
 ### KDE Plasma panel widget
 
-The package also includes an optional Plasma widget that shows the battery as
+The package also includes an optional KDE Plasma 6 widget that shows the battery as
 normal panel text (`84%`) in the system font, rather than as a 22 px tray icon.
 
 Right-click the panel → **Enter Edit Mode** → **Add Widgets** → **GSP 370

@@ -6,10 +6,16 @@
         "Description": "Shows the Sennheiser/EPOS GSP 370 battery percentage as panel text",
         "Icon": "audio-headset",
         "Authors": [
-            {"Name": "Nasir A."}
+            {
+                "Name": "Nasir A.",
+                "Email": "NasirA1991@users.noreply.github.com"
+            }
         ],
         "License": "MIT",
-        "Version": "1.0.0",
-        "Category": "System Information"
-    }
+        "Version": "1.0.1",
+        "Category": "System Information",
+        "Website": "https://github.com/NasirA1991/gsp370-tray",
+        "BugReportUrl": "https://github.com/NasirA1991/gsp370-tray/issues"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
 }
