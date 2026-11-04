@@ -1,0 +1,164 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Test and build
+        run: |
+          set -euo pipefail
+          cargo test --release --locked --manifest-path rust/Cargo.toml
+          cargo build --release --locked --manifest-path rust/Cargo.toml
+          python3 tests/e2e_pty.py ./rust/target/release/gsp370-tray
+
+      - name: Prepare release bundles
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          CARGO_VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml | head -1)"
+          test -n "$VERSION"
+          test "$VERSION" = "$CARGO_VERSION"
+
+          rm -rf dist /tmp/gsp370-source /tmp/gsp370-binary
+          mkdir -p dist /tmp/gsp370-source /tmp/gsp370-binary
+
+          # Reproducible source archive.  packaging/aur is deliberately
+          # excluded: the AUR PKGBUILD is distributed through AUR, not inside
+          # its own source tarball.
+          git archive --format=tar --prefix="gsp370-tray-$VERSION/" HEAD \
+            | tar -x -C /tmp/gsp370-source
+          rm -rf "/tmp/gsp370-source/gsp370-tray-$VERSION/packaging/aur"
+          tar --sort=name --mtime='2026-01-01 00:00:00 UTC' \
+            --owner=0 --group=0 --numeric-owner \
+            -C /tmp/gsp370-source -cf /tmp/gsp370-source.tar "gsp370-tray-$VERSION"
+          gzip -9n -c /tmp/gsp370-source.tar > "dist/gsp370-tray-$VERSION.tar.gz"
+
+          BUNDLE="/tmp/gsp370-binary/gsp370-tray-$VERSION"
+          mkdir -p "$BUNDLE/docs"
+          cp rust/target/release/gsp370-tray "$BUNDLE/"
+          cp packaging/gsp370-tray.desktop packaging/gsp370-tray.svg \
+             packaging/70-gsp370.rules "$BUNDLE/"
+          cp README.md LICENSE "$BUNDLE/"
+          cp docs/protocol.md docs/tray-icon.png "$BUNDLE/docs/"
+          cat > "$BUNDLE/INSTALL.txt" <<EOF
+GSP 370 Tray $VERSION - manual install (x86_64)
+
+  sudo install -Dm755 gsp370-tray /usr/local/bin/gsp370-tray
+  sudo install -Dm644 gsp370-tray.desktop /usr/local/share/applications/gsp370-tray.desktop
+  sudo install -Dm644 gsp370-tray.svg /usr/local/share/icons/hicolor/scalable/apps/gsp370-tray.svg
+  sudo install -Dm644 70-gsp370.rules /etc/udev/rules.d/70-gsp370.rules
+  sudo udevadm control --reload-rules
+  sudo udevadm trigger --action=add /sys/class/tty/ttyACM0
+
+Run `gsp370-tray` and click the tray icon.  Replug the dongle once if the
+port permission is not picked up immediately.
+EOF
+          tar --sort=name --mtime='2026-01-01 00:00:00 UTC' \
+            --owner=0 --group=0 --numeric-owner \
+            -C /tmp/gsp370-binary -cf /tmp/gsp370-binary.tar "gsp370-tray-$VERSION"
+          gzip -9n -c /tmp/gsp370-binary.tar > "dist/gsp370-tray-$VERSION-x86_64.tar.gz"
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "SOURCE_SHA256=$(sha256sum "dist/gsp370-tray-$VERSION.tar.gz" | awk '{print $1}')" >> "$GITHUB_ENV"
+
+      - name: Build Arch package
+        run: |
+          set -euo pipefail
+          rm -rf aur-build
+          mkdir -p aur-build
+          cp packaging/aur/PKGBUILD packaging/aur/gsp370-tray.install aur-build/
+          sed -i "s/^pkgver=.*/pkgver=$VERSION/" aur-build/PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('$SOURCE_SHA256')/" aur-build/PKGBUILD
+          cp "dist/gsp370-tray-$VERSION.tar.gz" aur-build/
+
+          docker run --rm \
+            -v "$PWD/aur-build:/work" \
+            -w /work \
+            archlinux:base-devel \
+            bash -c '
+              set -euo pipefail
+              pacman -Syu --noconfirm --needed rust git
+              useradd -m builder
+              chown -R builder:builder /work
+              su builder -c "cd /work && makepkg --nodeps --noconfirm"
+              su builder -c "cd /work && makepkg --printsrcinfo" > /work/.SRCINFO
+            '
+
+          cp aur-build/*.pkg.tar.zst dist/
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum \
+            "gsp370-tray-$VERSION.tar.gz" \
+            "gsp370-tray-$VERSION-x86_64.tar.gz" \
+            "gsp370-tray-$VERSION-1-x86_64.pkg.tar.zst" > SHA256SUMS
+          cd ..
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "GSP 370 Tray $VERSION" \
+              --generate-notes \
+              "dist/gsp370-tray-$VERSION.tar.gz" \
+              "dist/gsp370-tray-$VERSION-x86_64.tar.gz" \
+              "dist/gsp370-tray-$VERSION-1-x86_64.pkg.tar.zst" \
+              dist/SHA256SUMS
+          fi
+
+      - name: Publish AUR package
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$AUR_SSH_PRIVATE_KEY"
+
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$HOME/.ssh/aur"
+          chmod 600 "$HOME/.ssh/aur"
+          ssh-keyscan aur.archlinux.org >> "$HOME/.ssh/known_hosts"
+
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          rm -rf aur-repo
+          git clone ssh://aur@aur.archlinux.org/gsp370-tray.git aur-repo
+          cp aur-build/PKGBUILD aur-build/.SRCINFO aur-build/gsp370-tray.install aur-repo/
+
+          cd aur-repo
+          git config user.name "Nasir A."
+          git config user.email "NasirA1991@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO gsp370-tray.install
+          if git diff --cached --quiet; then
+            echo "AUR is already up to date."
+            exit 0
+          fi
+          git commit -m "Update to $VERSION"
+          git push origin master
