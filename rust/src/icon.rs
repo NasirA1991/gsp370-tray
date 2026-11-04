@@ -17,7 +17,20 @@ const SIZES: [i32; 7] = [16, 22, 24, 32, 48, 64, 128];
 // Subset of DejaVu Sans Bold containing only the ten digits.  Keeping the
 // font embedded avoids fontconfig, Pango, Qt and any runtime font lookup; it
 // costs ~2 KiB and gives the same smooth text as the old Qt icon.
-const FONT_BYTES: &[u8] = include_bytes!("../assets/DejaVuSans-Bold-digits.ttf");
+const FONT_BYTES: &[u8] = include_bytes!("../assets/NotoSans-Medium-digits.ttf");
+
+const DIGITS5: [[u8; 7]; 10] = [
+    [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
+    [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
+    [0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111],
+    [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
+    [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
+    [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
+    [0b00110, 0b01000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110],
+    [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
+    [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
+    [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100],
+];
 
 struct TextMask {
     size: u32,
@@ -29,21 +42,53 @@ impl TextMask {
         if label.is_empty() || !label.bytes().all(|b| b.is_ascii_digit()) {
             return None;
         }
+
+        // At 16-24 px a one-pixel 5x7 face is crisper than any antialiased
+        // outline font: thin strokes, no grey wash, and still room for the
+        // 8's counters.
+        if size <= 24 {
+            let glyphs: Vec<[u8; 7]> = label
+                .bytes()
+                .map(|b| DIGITS5[(b - b'0') as usize])
+                .collect();
+            let units = glyphs.len() * 5 + glyphs.len().saturating_sub(1);
+            if units > size as usize {
+                return None;
+            }
+            let left = (size as usize - units) / 2;
+            let top = (size as usize - 7) / 2;
+            let mut alpha = vec![0.0f32; (size * size) as usize];
+            for (index, glyph) in glyphs.iter().enumerate() {
+                for (gy, row) in glyph.iter().enumerate() {
+                    for gx in 0..5 {
+                        if (row & (1 << (4 - gx))) != 0 {
+                            let px = left + index * 6 + gx;
+                            let py = top + gy;
+                            if px < size as usize && py < size as usize {
+                                alpha[py * size as usize + px] = 1.0;
+                            }
+                        }
+                    }
+                }
+            }
+            return Some(Self { size, alpha });
+        }
+
         let font = FontRef::try_from_slice(FONT_BYTES).ok()?;
         let digit_count = label.len();
         let compact = size <= 24;
         let font_size = size as f32
             * if compact {
                 match digit_count {
-                    1 => 0.78,
+                    1 => 0.74,
                     2 => if size <= 18 { 0.68 } else { 0.60 },
                     _ => 0.48,
                 }
             } else {
                 match digit_count {
-                    1 => 0.48,
-                    2 => 0.42,
-                    _ => 0.33,
+                    1 => 0.52,
+                    2 => 0.46,
+                    _ => 0.36,
                 }
             };
         let scale = PxScale::from(font_size);
@@ -158,7 +203,7 @@ fn sample(
         // Thin antialiased stems turn grey against the dark disc at panel
         // sizes.  Keep genuinely covered pixels white while preserving the
         // counters and the soft edge.
-        if size <= 32.0 && coverage >= 0.5 {
+        if size <= 32.0 && coverage >= 0.18 {
             coverage = 1.0;
         }
         if coverage > 0.0 {

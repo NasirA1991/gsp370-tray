@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.3 — 2026-11-04
+
+- Thinner, crisper tray digits: crisp 5x7 pixel digits at 16–24 px and
+  Noto Sans Medium at larger sizes.
+- Removed the oversized bold font from the compact tray icon.
+
 ## 2.0.2 — 2026-11-04
 
 - Rewrote the README for end users: install, usage, troubleshooting and bugs.
