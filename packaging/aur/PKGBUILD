@@ -12,7 +12,7 @@ optdepends=('libnotify: low-battery notifications')
 options=('!debug')
 install=gsp370-tray.install
 source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz")
-sha256sums=('PLACEHOLDER')
+sha256sums=('2cd98e3e84221b6f90b4dd5e4f51b13445549e95cba77143837b55f8b16ff7ef')
 
 build() {
     cd "$srcdir/$pkgname-$pkgver"
