@@ -1,6 +1,8 @@
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont, point};
 use ksni::Icon;
-use std::f64::consts::{FRAC_PI_2, TAU};
+use std::env;
+use std::fs;
+use std::path::PathBuf;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TrayState {
@@ -14,11 +16,13 @@ pub enum TrayState {
 
 const SIZES: [i32; 7] = [16, 22, 24, 32, 48, 64, 128];
 
-// Subset of DejaVu Sans Bold containing only the ten digits.  Keeping the
-// font embedded avoids fontconfig, Pango, Qt and any runtime font lookup; it
-// costs ~2 KiB and gives the same smooth text as the old Qt icon.
+// Subset of Noto Sans Medium containing only the ten digits.  Keeping the
+// font embedded avoids fontconfig, Pango and Qt, and lets us render a smooth,
+// not-too-heavy face without a runtime font dependency.
 const FONT_BYTES: &[u8] = include_bytes!("../assets/NotoSans-Medium-digits.ttf");
 
+// A crisp one-pixel 5x7 face for the 16 px tray icon.  Antialiased outlines
+// turn into grey mush at that size; these keep the strokes thin and white.
 const DIGITS5: [[u8; 7]; 10] = [
     [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
     [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
@@ -43,10 +47,7 @@ impl TextMask {
             return None;
         }
 
-        // At 16-24 px a one-pixel 5x7 face is crisper than any antialiased
-        // outline font: thin strokes, no grey wash, and still room for the
-        // 8's counters.
-        if size <= 24 {
+        if size <= 18 {
             let glyphs: Vec<[u8; 7]> = label
                 .bytes()
                 .map(|b| DIGITS5[(b - b'0') as usize])
@@ -80,9 +81,9 @@ impl TextMask {
         let font_size = size as f32
             * if compact {
                 match digit_count {
-                    1 => 0.74,
-                    2 => if size <= 18 { 0.68 } else { 0.60 },
-                    _ => 0.48,
+                    1 => 0.80,
+                    2 => 0.70,
+                    _ => 0.52,
                 }
             } else {
                 match digit_count {
@@ -138,21 +139,89 @@ impl TextMask {
     }
 }
 
-fn accent(state: TrayState, battery: Option<u8>) -> [u8; 4] {
+fn accent(state: TrayState, battery: Option<u8>) -> [u8; 3] {
     if state != TrayState::Connected {
         return match state {
-            TrayState::Permission | TrayState::Error => [255, 180, 84, 255],
-            TrayState::Off => [154, 162, 173, 255],
-            _ => [119, 128, 139, 255],
+            TrayState::Permission | TrayState::Error => [255, 180, 84],
+            TrayState::Off => [154, 162, 173],
+            _ => [119, 128, 139],
         };
     }
     match battery {
-        Some(0..=10) => [255, 92, 92, 255],
-        Some(11..=20) => [255, 180, 84, 255],
-        Some(21..=40) => [245, 215, 110, 255],
-        Some(_) => [94, 224, 138, 255],
-        None => [119, 128, 139, 255],
+        Some(0..=10) => [255, 92, 92],
+        Some(11..=20) => [255, 180, 84],
+        Some(21..=40) => [245, 215, 110],
+        Some(_) => [94, 224, 138],
+        None => [119, 128, 139],
     }
+}
+
+fn config_home() -> Option<PathBuf> {
+    if let Ok(value) = env::var("XDG_CONFIG_HOME") {
+        if !value.is_empty() {
+            return Some(PathBuf::from(value));
+        }
+    }
+    env::var("HOME").ok().map(|home| PathBuf::from(home).join(".config"))
+}
+
+fn kde_window_background() -> Option<[u8; 3]> {
+    let path = config_home()?.join("kdeglobals");
+    let text = fs::read_to_string(path).ok()?;
+    let mut in_window = false;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_window = line.eq_ignore_ascii_case("[Colors:Window]");
+            continue;
+        }
+        if !in_window {
+            continue;
+        }
+        if let Some(value) = line.strip_prefix("BackgroundNormal=") {
+            let channels: Vec<u8> = value
+                .split(',')
+                .filter_map(|part| part.trim().parse::<u8>().ok())
+                .collect();
+            if channels.len() >= 3 {
+                return Some([channels[0], channels[1], channels[2]]);
+            }
+        }
+    }
+    None
+}
+
+/// Pick black-ish or white-ish foreground text for the current panel theme.
+///
+/// The tray's pixmap is not recoloured by Plasma, so we read KDE's window
+/// background colour and choose a contrasting text colour.  An environment
+/// override is available for tests and unusual themes.
+pub fn theme_text_color() -> [u8; 3] {
+    if let Ok(value) = env::var("GSP370_TEXT_COLOR") {
+        let channels: Vec<u8> = value
+            .split(',')
+            .filter_map(|part| part.trim().parse::<u8>().ok())
+            .collect();
+        if channels.len() >= 3 {
+            return [channels[0], channels[1], channels[2]];
+        }
+    }
+
+    if let Some([r, g, b]) = kde_window_background() {
+        let luminance = 0.2126 * r as f32 + 0.7152 * g as f32 + 0.0722 * b as f32;
+        return if luminance >= 140.0 {
+            [28, 30, 34]
+        } else {
+            [245, 247, 250]
+        };
+    }
+
+    if let Ok(theme) = env::var("GTK_THEME") {
+        if theme.to_ascii_lowercase().contains("dark") {
+            return [245, 247, 250];
+        }
+    }
+    [245, 247, 250]
 }
 
 fn sample(
@@ -162,60 +231,65 @@ fn sample(
     state: TrayState,
     battery: Option<u8>,
     text: Option<&TextMask>,
+    text_color: [u8; 3],
 ) -> [f32; 4] {
     let center = size / 2.0;
     let dx = x - center;
     let dy = y - center;
     let radius = (dx * dx + dy * dy).sqrt();
-    if radius > size * 0.47 {
-        return [0.0, 0.0, 0.0, 0.0];
-    }
-
     let compact = size <= 24.0;
-    let mut color: [f32; 4] = [24.0, 26.0, 30.0, 235.0 / 255.0];
+    let has_text = text.is_some();
 
-    // At tray sizes (16-24 px) a ring leaves too little room for the digits.
-    // Use a compact dark badge with large white text instead; the number is
-    // the information the icon exists to convey.
-    if !compact {
-        let ring_center = size * 0.385;
-        let ring_half = size * 0.0425;
+    // Compact connected icons are text-only.  Disconnected/unknown compact
+    // icons, and all large icons, keep a thin ring so the state is visible.
+    if !compact || !has_text {
+        let ring_center = if compact { size * 0.40 } else { size * 0.385 };
+        let ring_half = if compact { size * 0.065 } else { size * 0.0425 };
         if (radius - ring_center).abs() <= ring_half {
-            color = [72.0, 78.0, 87.0, 1.0];
-            if state == TrayState::Connected {
+            let color = if state == TrayState::Connected {
                 if let Some(level) = battery {
                     let mut angle = dy.atan2(dx);
-                    angle = (angle + FRAC_PI_2).rem_euclid(TAU);
-                    if angle / TAU <= level.min(100) as f64 / 100.0 {
-                        let a = accent(state, battery);
-                        color = [a[0] as f32, a[1] as f32, a[2] as f32, 1.0];
+                    angle = (angle + std::f64::consts::FRAC_PI_2)
+                        .rem_euclid(std::f64::consts::TAU);
+                    if angle / std::f64::consts::TAU <= level.min(100) as f64 / 100.0 {
+                        accent(state, battery)
+                    } else {
+                        [72, 78, 87]
                     }
+                } else {
+                    [72, 78, 87]
                 }
             } else {
-                let a = accent(state, battery);
-                color = [a[0] as f32, a[1] as f32, a[2] as f32, 1.0];
-            }
+                accent(state, battery)
+            };
+            return [color[0] as f32, color[1] as f32, color[2] as f32, 1.0];
         }
     }
 
     if let Some(mask) = text {
-        let mut coverage = mask.at(x, y);
-        // Thin antialiased stems turn grey against the dark disc at panel
-        // sizes.  Keep genuinely covered pixels white while preserving the
-        // counters and the soft edge.
-        if size <= 32.0 && coverage >= 0.18 {
-            coverage = 1.0;
-        }
+        let coverage = mask.at(x, y);
         if coverage > 0.0 {
-            color[0] = color[0] * (1.0 - coverage) + 245.0 * coverage;
-            color[1] = color[1] * (1.0 - coverage) + 247.0 * coverage;
-            color[2] = color[2] * (1.0 - coverage) + 250.0 * coverage;
+            // A light gamma lift keeps medium-weight strokes from washing out
+            // when the icon is composited over the panel, without adding a
+            // background plate.
+            let coverage = if size > 18.0 && coverage >= 0.20 {
+                1.0
+            } else {
+                coverage.powf(0.65)
+            };
+            return [
+                text_color[0] as f32,
+                text_color[1] as f32,
+                text_color[2] as f32,
+                coverage.min(1.0),
+            ];
         }
     }
-    color
+
+    [0.0, 0.0, 0.0, 0.0]
 }
 
-fn render(size: i32, state: TrayState, battery: Option<u8>) -> Vec<u8> {
+fn render(size: i32, state: TrayState, battery: Option<u8>, text_color: [u8; 3]) -> Vec<u8> {
     let label = if state == TrayState::Connected {
         battery.map(|b| b.min(100).to_string()).unwrap_or_default()
     } else {
@@ -223,6 +297,30 @@ fn render(size: i32, state: TrayState, battery: Option<u8>) -> Vec<u8> {
     };
     let text = TextMask::new(size as u32, &label);
     let mut data = Vec::with_capacity((size * size * 4) as usize);
+
+    // The 16 px bitmap face is deliberately pixel-aligned.  Supersampling a
+    // one-pixel stroke would average it into grey, so copy those pixels
+    // directly instead.
+    if size <= 18 {
+        if let Some(mask) = text.as_ref() {
+            for py in 0..size {
+                for px in 0..size {
+                    let coverage = mask.at(px as f64, py as f64);
+                    if coverage > 0.5 {
+                        data.extend_from_slice(&[
+                            255,
+                            text_color[0],
+                            text_color[1],
+                            text_color[2],
+                        ]);
+                    } else {
+                        data.extend_from_slice(&[0, 0, 0, 0]);
+                    }
+                }
+            }
+            return data;
+        }
+    }
 
     for py in 0..size {
         for px in 0..size {
@@ -239,6 +337,7 @@ fn render(size: i32, state: TrayState, battery: Option<u8>) -> Vec<u8> {
                         state,
                         battery,
                         text.as_ref(),
+                        text_color,
                     );
                     let alpha = sample[3];
                     alpha_sum += alpha;
@@ -262,13 +361,13 @@ fn render(size: i32, state: TrayState, battery: Option<u8>) -> Vec<u8> {
     data
 }
 
-pub fn icons(state: TrayState, battery: Option<u8>) -> Vec<Icon> {
+pub fn icons(state: TrayState, battery: Option<u8>, text_color: [u8; 3]) -> Vec<Icon> {
     SIZES
         .iter()
         .map(|&size| Icon {
             width: size,
             height: size,
-            data: render(size, state, battery),
+            data: render(size, state, battery, text_color),
         })
         .collect()
 }
@@ -279,10 +378,17 @@ mod tests {
 
     #[test]
     fn icon_sizes_and_argb() {
-        let list = icons(TrayState::Connected, Some(87));
+        let list = icons(TrayState::Connected, Some(87), [255, 255, 255]);
         assert_eq!(list.len(), SIZES.len());
         for icon in list {
             assert_eq!(icon.data.len(), (icon.width * icon.height * 4) as usize);
+        }
+    }
+
+    #[test]
+    fn icons_have_transparent_corners() {
+        for icon in icons(TrayState::Connected, Some(87), [255, 255, 255]) {
+            assert_eq!(&icon.data[..4], &[0, 0, 0, 0]);
         }
     }
 }

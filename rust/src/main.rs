@@ -159,6 +159,7 @@ struct AppTray {
     sidetone: u8,
     alerts: bool,
     autostart: bool,
+    text_color: [u8; 3],
     tx: Sender<Command>,
 }
 
@@ -172,6 +173,7 @@ impl AppTray {
             sidetone: config.sidetone,
             alerts: config.alerts,
             autostart: autostart_enabled(),
+            text_color: icon::theme_text_color(),
             tx,
         }
     }
@@ -239,7 +241,7 @@ impl ksni::Tray for AppTray {
     }
 
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
-        icon::icons(self.state, self.battery)
+        icon::icons(self.state, self.battery, self.text_color)
     }
 
     fn tool_tip(&self) -> ToolTip {
@@ -498,6 +500,7 @@ fn update_from_probe(
         tray.device = device_path;
         tray.alerts = config.alerts;
         tray.autostart = autostart_enabled();
+        tray.text_color = icon::theme_text_color();
     });
     if updated.is_none() {
         std::process::exit(0);

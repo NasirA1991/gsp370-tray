@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.4 — 2026-11-04
+
+- Removed the black circular icon plate; the tray icon now has a transparent
+  background.
+- Text colour adapts to KDE light/dark window backgrounds.
+- 16 px uses a crisp one-pixel 5x7 face; larger sizes use Noto Sans Medium.
+
 ## 2.0.3 — 2026-11-04
 
 - Thinner, crisper tray digits: crisp 5x7 pixel digits at 16–24 px and

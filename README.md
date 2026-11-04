@@ -8,11 +8,12 @@ audio server is required.
 
 [![AUR](https://img.shields.io/aur/version/gsp370-tray?label=AUR)](https://aur.archlinux.org/packages/gsp370-tray)
 
-![Tray icon](docs/tray-icon.png)
+![Battery percentage on dark and light panels](docs/tray-icon.png)
 
 ## Features
 
 - Battery percentage in the tray and tooltip
+- Transparent icon with light/dark adaptive text
 - Low-battery alerts at 20 %, 10 % and 5 %
 - Sidetone control from the tray menu
 - Headset on/off detection and automatic reconnect
