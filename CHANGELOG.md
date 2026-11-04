@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.0 — 2026-11-04
+
+- Added an optional KDE Plasma panel widget that renders the battery as
+  native panel text (`84%`) in the system font.
+- The widget hides while the headset is off and refreshes every minute.
+- The AUR package installs the widget alongside the tray app.
+
 ## 2.0.6 — 2026-11-04
 
 - Report StatusNotifierItem `Passive` while the headset is off, so KDE's

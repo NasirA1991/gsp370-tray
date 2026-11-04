@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Id": "org.nasir.gsp370battery",
+        "Name": "GSP 370 Battery",
+        "Description": "Shows the Sennheiser/EPOS GSP 370 battery percentage as panel text",
+        "Icon": "audio-headset",
+        "Authors": [
+            {"Name": "Nasir A."}
+        ],
+        "License": "MIT",
+        "Version": "1.0.0",
+        "Category": "System Information"
+    }
+}
