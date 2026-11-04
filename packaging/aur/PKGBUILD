@@ -17,12 +17,14 @@ sha256sums=('2cd98e3e84221b6f90b4dd5e4f51b13445549e95cba77143837b55f8b16ff7ef')
 build() {
     cd "$srcdir/$pkgname-$pkgver"
     export CARGO_HOME="$srcdir/cargo-home"
+    export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$srcdir=/build"
     cargo build --release --locked --manifest-path rust/Cargo.toml
 }
 
 check() {
     cd "$srcdir/$pkgname-$pkgver"
     export CARGO_HOME="$srcdir/cargo-home"
+    export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$srcdir=/build"
     cargo test --release --locked --manifest-path rust/Cargo.toml
 }
 
