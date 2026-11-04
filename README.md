@@ -8,7 +8,7 @@ wireless headset (USB `1395:009a`).  It replaces the hardware-facing parts of
 the discontinued EPOS Gaming Suite without Qt, GTK, Electron, a web view, or
 audio processing.
 
-- **Battery percentage in the tray**, drawn as a ring with the number inside
+- **Battery percentage in the tray**, with a compact high-contrast badge at 16–24 px and a ring at larger sizes
 - **Low-battery notifications** at 20 %, 10 % and 5 %
 - **Sidetone control** from a tray submenu
 - **Headset on/off** detection
@@ -28,7 +28,7 @@ Measured on this machine (KDE Plasma Wayland), 20-second idle window:
 
 | Build | RSS | PSS | Private anonymous |
 |---|---:|---:|---:|
-| **GSP 370 Tray 2.0 (Rust + raw SNI)** | **11.3 MiB** | **8.8 MiB** | **7.3 MiB** |
+| **GSP 370 Tray 2.0.1 (Rust + raw SNI)** | **11.3 MiB** | **8.8 MiB** | **7.3 MiB** |
 | Previous Qt Widgets version | 68.4 MiB | 24.8 MiB | 12.8 MiB |
 | Minimal Qt Widgets tray (baseline) | 52.5 MiB | 14.4 MiB | 9.3 MiB |
 | Minimal GTK3 + AppIndicator tray (baseline) | 29.8 MiB | 11.8 MiB | 6.4 MiB |
@@ -82,7 +82,7 @@ plugged in and the tray reports a permission error, unplug/replug it once.
 
 ### Release binary
 
-Download `gsp370-tray-2.0.0-x86_64.tar.gz` from
+Download `gsp370-tray-2.0.1-x86_64.tar.gz` from
 [GitHub Releases](https://github.com/NasirA1991/gsp370-tray/releases), extract
 it, and install the binary/desktop files manually, or use the source build
 below.

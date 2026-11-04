@@ -31,11 +31,20 @@ impl TextMask {
         }
         let font = FontRef::try_from_slice(FONT_BYTES).ok()?;
         let digit_count = label.len();
+        let compact = size <= 24;
         let font_size = size as f32
-            * match digit_count {
-                1 => 0.48,
-                2 => 0.42,
-                _ => 0.33,
+            * if compact {
+                match digit_count {
+                    1 => 0.78,
+                    2 => if size <= 18 { 0.68 } else { 0.60 },
+                    _ => 0.48,
+                }
+            } else {
+                match digit_count {
+                    1 => 0.48,
+                    2 => 0.42,
+                    _ => 0.33,
+                }
             };
         let scale = PxScale::from(font_size);
         let scaled = font.as_scaled(scale);
@@ -117,24 +126,30 @@ fn sample(
         return [0.0, 0.0, 0.0, 0.0];
     }
 
-    let ring_center = size * 0.385;
-    let ring_half = size * 0.0425;
+    let compact = size <= 24.0;
     let mut color: [f32; 4] = [24.0, 26.0, 30.0, 235.0 / 255.0];
 
-    if (radius - ring_center).abs() <= ring_half {
-        color = [72.0, 78.0, 87.0, 1.0];
-        if state == TrayState::Connected {
-            if let Some(level) = battery {
-                let mut angle = dy.atan2(dx);
-                angle = (angle + FRAC_PI_2).rem_euclid(TAU);
-                if angle / TAU <= level.min(100) as f64 / 100.0 {
-                    let a = accent(state, battery);
-                    color = [a[0] as f32, a[1] as f32, a[2] as f32, 1.0];
+    // At tray sizes (16-24 px) a ring leaves too little room for the digits.
+    // Use a compact dark badge with large white text instead; the number is
+    // the information the icon exists to convey.
+    if !compact {
+        let ring_center = size * 0.385;
+        let ring_half = size * 0.0425;
+        if (radius - ring_center).abs() <= ring_half {
+            color = [72.0, 78.0, 87.0, 1.0];
+            if state == TrayState::Connected {
+                if let Some(level) = battery {
+                    let mut angle = dy.atan2(dx);
+                    angle = (angle + FRAC_PI_2).rem_euclid(TAU);
+                    if angle / TAU <= level.min(100) as f64 / 100.0 {
+                        let a = accent(state, battery);
+                        color = [a[0] as f32, a[1] as f32, a[2] as f32, 1.0];
+                    }
                 }
+            } else {
+                let a = accent(state, battery);
+                color = [a[0] as f32, a[1] as f32, a[2] as f32, 1.0];
             }
-        } else {
-            let a = accent(state, battery);
-            color = [a[0] as f32, a[1] as f32, a[2] as f32, 1.0];
         }
     }
 

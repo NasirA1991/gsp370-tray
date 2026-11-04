@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1 — 2026-11-04
+
+- Fixed 16–24 px tray icons: use a compact dark badge with large white digits
+  instead of a ring that left no room for the percentage.
+- Kept the battery ring for 32 px and larger icons.
+
 ## 2.0.0 — 2026-11-04
 
 - Rewrote the app in Rust with a raw StatusNotifierItem implementation.
