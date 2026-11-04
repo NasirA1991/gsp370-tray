@@ -52,7 +52,7 @@ jobs:
           tar --sort=name --mtime='2026-01-01 00:00:00 UTC' \
             --owner=0 --group=0 --numeric-owner \
             -C /tmp/gsp370-source -cf /tmp/gsp370-source.tar "gsp370-tray-$VERSION"
-          gzip -9n -c /tmp/gsp370-source.tar > "dist/gsp370-tray-$VERSION.tar.gz"
+          gzip -9n -c /tmp/gsp370-source.tar > "dist/gsp370-tray-$VERSION-source.tar.gz"
 
           BUNDLE="/tmp/gsp370-binary/gsp370-tray-$VERSION"
           mkdir -p "$BUNDLE/docs"
@@ -80,7 +80,7 @@ jobs:
           gzip -9n -c /tmp/gsp370-binary.tar > "dist/gsp370-tray-$VERSION-x86_64.tar.gz"
 
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "SOURCE_SHA256=$(sha256sum "dist/gsp370-tray-$VERSION.tar.gz" | awk '{print $1}')" >> "$GITHUB_ENV"
+          echo "SOURCE_SHA256=$(sha256sum "dist/gsp370-tray-$VERSION-source.tar.gz" | awk '{print $1}')" >> "$GITHUB_ENV"
 
       - name: Build Arch package
         run: |
@@ -90,7 +90,7 @@ jobs:
           cp packaging/aur/PKGBUILD packaging/aur/gsp370-tray.install aur-build/
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" aur-build/PKGBUILD
           sed -i "s/^sha256sums=.*/sha256sums=('$SOURCE_SHA256')/" aur-build/PKGBUILD
-          cp "dist/gsp370-tray-$VERSION.tar.gz" aur-build/
+          cp "dist/gsp370-tray-$VERSION-source.tar.gz" aur-build/
 
           docker run --rm \
             -v "$PWD/aur-build:/work" \
@@ -114,7 +114,7 @@ jobs:
           set -euo pipefail
           cd dist
           sha256sum \
-            "gsp370-tray-$VERSION.tar.gz" \
+            "gsp370-tray-$VERSION-source.tar.gz" \
             "gsp370-tray-$VERSION-x86_64.tar.gz" \
             "gsp370-tray-$VERSION-1-x86_64.pkg.tar.zst" > SHA256SUMS
           cd ..
@@ -125,7 +125,7 @@ jobs:
             gh release create "$GITHUB_REF_NAME" \
               --title "GSP 370 Tray $VERSION" \
               --generate-notes \
-              "dist/gsp370-tray-$VERSION.tar.gz" \
+              "dist/gsp370-tray-$VERSION-source.tar.gz" \
               "dist/gsp370-tray-$VERSION-x86_64.tar.gz" \
               "dist/gsp370-tray-$VERSION-1-x86_64.pkg.tar.zst" \
               dist/SHA256SUMS
