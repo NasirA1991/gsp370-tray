@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.2 — 2026-11-04
+
+- Rewrote the README for end users: install, usage, troubleshooting and bugs.
+- Moved releases to GitHub Actions.  A pushed `v*` tag now builds the source,
+  binary and Arch packages, creates the GitHub release, and updates AUR.
+
 ## 2.0.1 — 2026-11-04
 
 - Fixed 16–24 px tray icons: use a compact dark badge with large white digits
