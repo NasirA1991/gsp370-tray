@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7cf0a4"/>
+      <stop offset="1" stop-color="#35c66b"/>
+    </linearGradient>
+  </defs>
+  <circle cx="128" cy="128" r="124" fill="#181a1e"/>
+  <circle cx="128" cy="128" r="96" fill="none" stroke="#3a3f47" stroke-width="18"/>
+  <path d="M128 32 A96 96 0 0 1 224 128" fill="none" stroke="url(#ring)" stroke-width="18" stroke-linecap="round"/>
+  <path d="M76 132 V108 A52 52 0 0 1 180 108 V132" fill="none" stroke="#f4f6f9" stroke-width="12" stroke-linecap="round"/>
+  <rect x="58" y="124" width="30" height="58" rx="14" fill="#f4f6f9"/>
+  <rect x="168" y="124" width="30" height="58" rx="14" fill="#f4f6f9"/>
+  <path d="M73 178 C73 206 104 210 126 204" fill="none" stroke="#f4f6f9" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="132" cy="202" r="9" fill="#f4f6f9"/>
+  <path d="M182 198 h28 a7 7 0 0 1 7 7 v13 a7 7 0 0 1 -7 7 h-28 a7 7 0 0 1 -7 -7 v-13 a7 7 0 0 1 7 -7 z" fill="none" stroke="#5ee08a" stroke-width="6"/>
+  <rect x="190" y="204" width="12" height="15" rx="3" fill="#5ee08a"/>
+</svg>

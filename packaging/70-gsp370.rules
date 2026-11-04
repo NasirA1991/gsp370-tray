@@ -1,0 +1,9 @@
+# Sennheiser/EPOS GSP 370 wireless gaming headset (1395:009a)
+#
+# Interface 4 is the CDC-ACM settings channel used by gsp370-tray.  The HID
+# interface (3) only carries consumer-control media keys and needs no rule.
+#
+# TAG+="uaccess" lets the currently logged-in seat user open the port without
+# adding them to a group.  GROUP="uucp" is a fallback for non-logind systems.
+# ModemManager must not probe this port: it is not a modem.
+ACTION=="add|change", SUBSYSTEM=="tty", ATTRS{idVendor}=="1395", ATTRS{idProduct}=="009a", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{ID_MM_CANDIDATE}="0", TAG+="uaccess", GROUP="uucp", MODE="0660"

@@ -1,0 +1,12 @@
+build/
+build-*/
+.research/
+.cache/
+dist/
+pkg/
+*.pkg.tar.zst
+*.tar.gz
+compile_commands.json
+*.user
+*.swp
+rust/target/

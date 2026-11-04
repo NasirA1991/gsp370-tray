@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=GSP 370 Tray
+GenericName=Headset Battery Monitor
+Comment=Battery percentage and sidetone for the Sennheiser/EPOS GSP 370
+Exec=gsp370-tray
+Icon=gsp370-tray
+Terminal=false
+Categories=Utility;
+Keywords=gsp370;gsp 370;headset;battery;sidetone;epos;sennheiser;
+StartupNotify=false
+X-GNOME-UsesNotifications=true
