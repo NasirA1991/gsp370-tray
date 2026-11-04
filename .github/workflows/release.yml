@@ -66,18 +66,18 @@ jobs:
           cp README.md LICENSE "$BUNDLE/"
           cp docs/protocol.md docs/tray-icon.png "$BUNDLE/docs/"
           cat > "$BUNDLE/INSTALL.txt" <<EOF
-GSP 370 Tray $VERSION - manual install (x86_64)
+          GSP 370 Tray $VERSION - manual install (x86_64)
 
-  sudo install -Dm755 gsp370-tray /usr/local/bin/gsp370-tray
-  sudo install -Dm644 gsp370-tray.desktop /usr/local/share/applications/gsp370-tray.desktop
-  sudo install -Dm644 gsp370-tray.svg /usr/local/share/icons/hicolor/scalable/apps/gsp370-tray.svg
-  sudo install -Dm644 70-gsp370.rules /etc/udev/rules.d/70-gsp370.rules
-  sudo udevadm control --reload-rules
-  sudo udevadm trigger --action=add /sys/class/tty/ttyACM0
+            sudo install -Dm755 gsp370-tray /usr/local/bin/gsp370-tray
+            sudo install -Dm644 gsp370-tray.desktop /usr/local/share/applications/gsp370-tray.desktop
+            sudo install -Dm644 gsp370-tray.svg /usr/local/share/icons/hicolor/scalable/apps/gsp370-tray.svg
+            sudo install -Dm644 70-gsp370.rules /etc/udev/rules.d/70-gsp370.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --action=add /sys/class/tty/ttyACM0
 
-Run `gsp370-tray` and click the tray icon.  Replug the dongle once if the
-port permission is not picked up immediately.
-EOF
+          Run `gsp370-tray` and click the tray icon.  Replug the dongle once if the
+          port permission is not picked up immediately.
+          EOF
           tar --sort=name --mtime='2026-01-01 00:00:00 UTC' \
             --owner=0 --group=0 --numeric-owner \
             -C /tmp/gsp370-binary -cf /tmp/gsp370-binary.tar "gsp370-tray-$VERSION"
