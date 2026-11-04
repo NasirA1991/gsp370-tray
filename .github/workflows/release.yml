@@ -130,6 +130,20 @@ jobs:
               "dist/gsp370-tray-$VERSION-1-x86_64.pkg.tar.zst" \
               dist/SHA256SUMS
           fi
+          # A release created while a tag is being moved can end up as a draft.
+          # AUR must see a public URL before we push its PKGBUILD.
+          gh release edit "$GITHUB_REF_NAME" --draft=false
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/gsp370-tray-$VERSION-source.tar.gz"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -LfsS -o /dev/null "$url"; then
+              break
+            fi
+            if [ "$attempt" = 6 ]; then
+              echo "release asset is not public: $url" >&2
+              exit 1
+            fi
+            sleep 5
+          done
 
       - name: Publish AUR package
         env:
