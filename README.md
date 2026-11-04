@@ -17,6 +17,7 @@ audio server is required.
 - Low-battery alerts at 20 %, 10 % and 5 %
 - Sidetone control from the tray menu
 - Headset on/off detection and automatic reconnect
+- Hides from the tray while the headset is off (KDE “only show when relevant”)
 - Start-at-login toggle
 - CLI for scripting: `--battery`, `--probe`, `--set-sidetone`
 - Small native binary; no web view or audio processing

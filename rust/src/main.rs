@@ -231,6 +231,11 @@ impl ksni::Tray for AppTray {
     }
 
     fn status(&self) -> Status {
+        // Plasma's "only show when relevant" mode hides Passive items.
+        // The headset being off is exactly the not-relevant state.
+        if self.state == TrayState::Off {
+            return Status::Passive;
+        }
         if self.state == TrayState::Connected
             && self.battery.is_some_and(|b| b <= 10)
         {

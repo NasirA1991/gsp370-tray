@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.6 — 2026-11-04
+
+- Report StatusNotifierItem `Passive` while the headset is off, so KDE's
+  "only show when relevant" system-tray mode hides the icon and restores it
+  when the headset comes back.
+
 ## 2.0.5 — 2026-11-04
 
 - Fixed blurry 22/24 px digits by using a crisp one-pixel seven-segment face
