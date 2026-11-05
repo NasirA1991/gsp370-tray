@@ -371,7 +371,7 @@ dependencies = [
 
 [[package]]
 name = "gsp370-tray"
-version = "2.1.2"
+version = "2.2.0"
 dependencies = [
  "ab_glyph",
  "ksni",

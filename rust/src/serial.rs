@@ -4,7 +4,7 @@ use std::ffi::CString;
 use std::fs::{self, File};
 use std::io;
 use std::os::fd::{AsRawFd, FromRawFd};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -29,7 +29,10 @@ pub struct Error {
 
 impl Error {
     fn new(code: ErrorCode, message: impl Into<String>) -> Self {
-        Self { code, message: message.into() }
+        Self {
+            code,
+            message: message.into(),
+        }
     }
 }
 
@@ -49,6 +52,7 @@ fn read_attr(path: &Path) -> Option<String> {
 }
 
 fn find_port() -> Option<String> {
+    let mut ports = Vec::new();
     for entry in fs::read_dir("/sys/class/tty").ok()? {
         let entry = entry.ok()?;
         let name = entry.file_name().to_string_lossy().into_owned();
@@ -64,14 +68,19 @@ fn find_port() -> Option<String> {
         if read_attr(&usb_device.join("idVendor")).as_deref() == Some("1395")
             && read_attr(&usb_device.join("idProduct")).as_deref() == Some("009a")
         {
-            return Some(format!("/dev/{name}"));
+            ports.push(PathBuf::from("/dev").join(name));
         }
     }
-    None
+    ports.sort();
+    ports
+        .into_iter()
+        .next()
+        .map(|path| path.to_string_lossy().into_owned())
 }
 
 fn open_path(path: &str) -> Result<Device, Error> {
-    let c_path = CString::new(path).map_err(|_| Error::new(ErrorCode::OpenFailed, "invalid path"))?;
+    let c_path =
+        CString::new(path).map_err(|_| Error::new(ErrorCode::OpenFailed, "invalid path"))?;
     let fd = unsafe {
         libc::open(
             c_path.as_ptr(),
@@ -89,10 +98,7 @@ fn open_path(path: &str) -> Result<Device, Error> {
         } else {
             ""
         };
-        return Err(Error::new(
-            code,
-            format!("Cannot open {path}: {err}{hint}"),
-        ));
+        return Err(Error::new(code, format!("Cannot open {path}: {err}{hint}")));
     }
 
     let file = unsafe { File::from_raw_fd(fd) };
@@ -101,7 +107,10 @@ fn open_path(path: &str) -> Result<Device, Error> {
     if unsafe { libc::tcgetattr(fd, &mut term) } != 0 {
         return Err(Error::new(
             ErrorCode::ConfigFailed,
-            format!("Cannot read terminal settings for {path}: {}", io::Error::last_os_error()),
+            format!(
+                "Cannot read terminal settings for {path}: {}",
+                io::Error::last_os_error()
+            ),
         ));
     }
 
@@ -119,14 +128,20 @@ fn open_path(path: &str) -> Result<Device, Error> {
     {
         return Err(Error::new(
             ErrorCode::ConfigFailed,
-            format!("Cannot set 921600 8N1 on {path}: {}", io::Error::last_os_error()),
+            format!(
+                "Cannot set 921600 8N1 on {path}: {}",
+                io::Error::last_os_error()
+            ),
         ));
     }
 
     unsafe { libc::tcflush(fd, libc::TCIFLUSH) };
     thread::sleep(Duration::from_millis(150));
 
-    Ok(Device { file, path: path.to_owned() })
+    Ok(Device {
+        file,
+        path: path.to_owned(),
+    })
 }
 
 impl Device {
@@ -149,21 +164,28 @@ impl Device {
     }
 
     fn wait(&self, events: libc::c_short, timeout: Duration) -> io::Result<bool> {
-        let mut pfd = libc::pollfd {
-            fd: self.file.as_raw_fd(),
-            events,
-            revents: 0,
-        };
-        let timeout_ms = timeout.as_millis().min(i32::MAX as u128) as i32;
-        let ready = unsafe { libc::poll(&mut pfd, 1, timeout_ms) };
-        if ready < 0 {
-            let err = io::Error::last_os_error();
-            if err.kind() == io::ErrorKind::Interrupted {
+        let deadline = Instant::now() + timeout;
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
                 return Ok(false);
             }
-            return Err(err);
+            let mut pfd = libc::pollfd {
+                fd: self.file.as_raw_fd(),
+                events,
+                revents: 0,
+            };
+            let timeout_ms = remaining.as_millis().min(i32::MAX as u128) as i32;
+            let ready = unsafe { libc::poll(&mut pfd, 1, timeout_ms) };
+            if ready < 0 {
+                let err = io::Error::last_os_error();
+                if err.kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(err);
+            }
+            return Ok(ready > 0);
         }
-        Ok(ready > 0)
     }
 
     fn write_all(&self, bytes: &[u8]) -> Result<(), Error> {
@@ -171,13 +193,8 @@ impl Device {
         let deadline = Instant::now() + Duration::from_millis(500);
         let mut written = 0;
         while written < bytes.len() {
-            let n = unsafe {
-                libc::write(
-                    fd,
-                    bytes[written..].as_ptr().cast(),
-                    bytes.len() - written,
-                )
-            };
+            let n =
+                unsafe { libc::write(fd, bytes[written..].as_ptr().cast(), bytes.len() - written) };
             if n > 0 {
                 written += n as usize;
                 continue;
@@ -304,7 +321,14 @@ impl Device {
     pub fn set_sidetone(&self, percent: u8) -> Result<(), Error> {
         let percent = percent.min(100);
         let level = sidetone_level(percent);
-        self.command(if level == 0 { OP_SIDETONE_OFF } else { OP_SIDETONE_ON }, &[])?;
+        self.command(
+            if level == 0 {
+                OP_SIDETONE_OFF
+            } else {
+                OP_SIDETONE_ON
+            },
+            &[],
+        )?;
         self.command(OP_SIDETONE_SET, &[level])?;
         Ok(())
     }

@@ -15,7 +15,8 @@ rm -f \
     "$RULE"
 rm -rf \
     "$PREFIX/share/doc/gsp370-tray" \
-    "$PREFIX/share/gsp370-tray"
+    "$PREFIX/share/gsp370-tray" \
+    "$PREFIX/share/plasma/plasmoids/org.nasir.gsp370battery"
 
 if command -v udevadm >/dev/null 2>&1; then
     udevadm control --reload-rules
@@ -24,5 +25,5 @@ fi
 
 echo "Removed the application and udev rule."
 echo "Your settings and autostart entry were left in place:"
-echo "  ~/.config/gsp370-tray/gsp370-tray.conf"
+echo "  ~/.config/gsp370-tray/config"
 echo "  ~/.config/autostart/gsp370-tray.desktop"

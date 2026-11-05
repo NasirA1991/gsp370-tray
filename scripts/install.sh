@@ -45,8 +45,9 @@ install_system() {
         "$PREFIX/share/applications/gsp370-tray.desktop"
     install -Dm644 "$ROOT/packaging/gsp370-tray.svg" \
         "$PREFIX/share/icons/hicolor/scalable/apps/gsp370-tray.svg"
-    install -Dm644 "$ROOT/packaging/70-gsp370.rules" \
-        "$PREFIX/share/gsp370-tray/70-gsp370.rules"
+    install -d "$PREFIX/share/plasma/plasmoids/org.nasir.gsp370battery"
+    cp -a "$ROOT/packaging/plasmoid/gsp370battery/." \
+        "$PREFIX/share/plasma/plasmoids/org.nasir.gsp370battery/"
     install -Dm644 "$ROOT/README.md" "$PREFIX/share/doc/gsp370-tray/README.md"
     install -Dm644 "$ROOT/LICENSE" "$PREFIX/share/doc/gsp370-tray/LICENSE"
     install -Dm644 "$ROOT/docs/protocol.md" "$PREFIX/share/doc/gsp370-tray/docs/protocol.md"
@@ -66,6 +67,7 @@ install_system() {
     echo "Installed gsp370-tray under $PREFIX."
     echo "The udev rule is at $RULE."
     echo "Start the tray from your application menu or with: gsp370-tray"
+    echo "The KDE Plasma widget is available under Add Widgets → GSP 370 Battery."
     echo "If the port still cannot be opened, unplug/replug the dongle once."
 }
 

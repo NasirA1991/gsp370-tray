@@ -53,10 +53,6 @@ pub fn parse_reply(received: &[u8], opcode: u8) -> Option<Reply> {
         if end > received.len() {
             return None;
         }
-        if end < i + 7 {
-            i += 1;
-            continue;
-        }
         return Some(Reply {
             status: received[i + 6],
             values: received[i + 7..end].to_vec(),
@@ -100,7 +96,9 @@ mod tests {
 
     #[test]
     fn reply_after_event() {
-        let rx = [0x04, 0xE9, 0x00, 0x04, 0x0E, 0x05, 0x01, 0x9C, 0xFC, 0x00, 0x57];
+        let rx = [
+            0x04, 0xE9, 0x00, 0x04, 0x0E, 0x05, 0x01, 0x9C, 0xFC, 0x00, 0x57,
+        ];
         let reply = parse_reply(&rx, OP_BATTERY).unwrap();
         assert_eq!(reply.status, 0);
         assert_eq!(reply.values, vec![0x57]);

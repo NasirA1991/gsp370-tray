@@ -1,18 +1,19 @@
 mod icon;
 mod protocol;
 mod serial;
+mod status;
 
 use icon::TrayState;
 use ksni::blocking::{Handle, TrayMethods};
-use ksni::menu::{
-    CheckmarkItem, MenuItem, RadioGroup, RadioItem, StandardItem, SubMenu,
-};
+use ksni::menu::{CheckmarkItem, MenuItem, RadioGroup, RadioItem, StandardItem, SubMenu};
 use ksni::{Category, Status, ToolTip};
 use serial::{Device, ErrorCode};
 
 use std::env;
 use std::fs::{self, File, OpenOptions};
+use std::io::Write;
 use std::os::fd::AsRawFd;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -50,17 +51,8 @@ fn config_path() -> PathBuf {
     config_home().join(APP_ID).join("config")
 }
 
-fn runtime_dir() -> PathBuf {
-    env::var("XDG_RUNTIME_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/tmp"))
-}
-
-fn load_config() -> Config {
+fn parse_config(text: &str) -> Config {
     let mut config = Config::default();
-    let Ok(text) = fs::read_to_string(config_path()) else {
-        return config;
-    };
     for line in text.lines() {
         let Some((key, value)) = line.split_once('=') else {
             continue;
@@ -80,17 +72,23 @@ fn load_config() -> Config {
     config
 }
 
+fn load_config() -> Config {
+    fs::read_to_string(config_path())
+        .map(|text| parse_config(&text))
+        .unwrap_or_default()
+}
+
 fn save_config(config: &Config) {
     let path = config_path();
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
     let body = format!(
-        "sidetone={}\nalerts={}\n",
+        "# gsp370-tray config v1\nsidetone={}\nalerts={}\n",
         config.sidetone,
         if config.alerts { 1 } else { 0 }
     );
-    if let Err(error) = fs::write(&path, body) {
+    if let Err(error) = status::atomic_write(&path, body.as_bytes()) {
         eprintln!("gsp370-tray: cannot save {}: {error}", path.display());
     }
 }
@@ -104,7 +102,10 @@ fn autostart_enabled() -> bool {
 }
 
 fn desktop_quote(path: &Path) -> String {
-    let text = path.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"");
+    let text = path
+        .to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
     format!("\"{text}\"")
 }
 
@@ -127,7 +128,7 @@ fn write_autostart() -> std::io::Result<()> {
          X-GNOME-Autostart-enabled=true\n",
         desktop_quote(&exec)
     );
-    fs::write(path, body)
+    status::atomic_write(&path, body.as_bytes())
 }
 
 fn remove_autostart() -> std::io::Result<()> {
@@ -140,7 +141,16 @@ fn remove_autostart() -> std::io::Result<()> {
 
 fn notify(title: &str, body: &str) {
     let _ = ProcessCommand::new("notify-send")
-        .args(["-a", "GSP 370 Tray", "-i", "gsp370-tray", "-u", "normal", title, body])
+        .args([
+            "-a",
+            "GSP 370 Tray",
+            "-i",
+            "gsp370-tray",
+            "-u",
+            "normal",
+            title,
+            body,
+        ])
         .status();
 }
 
@@ -236,9 +246,7 @@ impl ksni::Tray for AppTray {
         if self.state == TrayState::Off {
             return Status::Passive;
         }
-        if self.state == TrayState::Connected
-            && self.battery.is_some_and(|b| b <= 10)
-        {
+        if self.state == TrayState::Connected && self.battery.is_some_and(|b| b <= 10) {
             Status::NeedsAttention
         } else {
             Status::Active
@@ -300,17 +308,15 @@ impl ksni::Tray for AppTray {
             SubMenu {
                 label: "Sidetone".into(),
                 enabled: connected,
-                submenu: vec![
-                    RadioGroup {
-                        selected: self.sidetone_index(),
-                        select: Box::new(|this: &mut Self, index: usize| {
-                            let percent = if index == 0 { 0 } else { index as u8 * 10 };
-                            let _ = this.tx.send(Command::SetSidetone(percent));
-                        }),
-                        options,
-                    }
-                    .into(),
-                ],
+                submenu: vec![RadioGroup {
+                    selected: self.sidetone_index(),
+                    select: Box::new(|this: &mut Self, index: usize| {
+                        let percent = if index == 0 { 0 } else { index as u8 * 10 };
+                        let _ = this.tx.send(Command::SetSidetone(percent));
+                    }),
+                    options,
+                }
+                .into()],
                 ..Default::default()
             }
             .into(),
@@ -427,6 +433,38 @@ fn poll_interval(state: TrayState) -> Duration {
     }
 }
 
+fn state_name(state: TrayState) -> &'static str {
+    match state {
+        TrayState::Connected => "on",
+        TrayState::Off => "off",
+        TrayState::NoDongle => "no-dongle",
+        TrayState::Permission => "permission",
+        TrayState::Error => "error",
+        TrayState::Unknown => "unknown",
+    }
+}
+
+fn reset_low_notifications(battery: u8, previous: Option<u8>, low_notified: &mut u8) {
+    if battery > 25 || previous.is_some_and(|last| battery > last.saturating_add(2)) {
+        *low_notified = 0;
+    }
+}
+
+fn take_low_notification(battery: u8, low_notified: &mut u8) -> Option<u8> {
+    for threshold in [20u8, 10, 5] {
+        let bit = match threshold {
+            20 => 1,
+            10 => 2,
+            _ => 4,
+        };
+        if battery <= threshold && (*low_notified & bit) == 0 {
+            *low_notified |= bit;
+            return Some(threshold);
+        }
+    }
+    None
+}
+
 fn update_from_probe(
     handle: &Handle<AppTray>,
     outcome: Probe,
@@ -436,31 +474,17 @@ fn update_from_probe(
 ) -> TrayState {
     let (state, battery, detail, device_path) = match outcome {
         Probe::Connected { battery, path } => {
-            if battery > 25 {
-                *low_notified = 0;
-            }
-            if let Some(previous) = *last_battery {
-                if battery > previous.saturating_add(2) {
-                    *low_notified = 0;
-                }
-            }
+            reset_low_notifications(battery, *last_battery, low_notified);
             *last_battery = Some(battery);
 
             if config.alerts {
-                for threshold in [20u8, 10, 5] {
-                    let bit = match threshold {
-                        20 => 1,
-                        10 => 2,
-                        _ => 4,
-                    };
-                    if battery <= threshold && (*low_notified & bit) == 0 {
-                        *low_notified |= bit;
-                        notify(
-                            "GSP 370 battery low",
-                            &format!("Battery is at {battery}% — charge the headset."),
-                        );
-                        break;
-                    }
+                if let Some(threshold) = take_low_notification(battery, low_notified) {
+                    notify(
+                        "GSP 370 battery low",
+                        &format!(
+                            "Battery is at {battery}% (passed {threshold}%) — charge the headset."
+                        ),
+                    );
                 }
             }
 
@@ -477,26 +501,20 @@ fn update_from_probe(
             "Turn the headset on to read its battery.".into(),
             String::new(),
         ),
-        Probe::NoDevice(error) => (
-            TrayState::NoDongle,
-            None,
-            error,
-            String::new(),
-        ),
-        Probe::Permission(error) => (
-            TrayState::Permission,
-            None,
-            error,
-            String::new(),
-        ),
-        Probe::Error(error) => (
-            TrayState::Error,
-            None,
-            error,
-            String::new(),
-        ),
+        Probe::NoDevice(error) => (TrayState::NoDongle, None, error, String::new()),
+        Probe::Permission(error) => (TrayState::Permission, None, error, String::new()),
+        Probe::Error(error) => (TrayState::Error, None, error, String::new()),
     };
 
+    let _ = status::write(
+        state_name(state),
+        battery,
+        if device_path.is_empty() {
+            None
+        } else {
+            Some(&device_path)
+        },
+    );
     let state_for_return = state;
     let updated = handle.update(|tray| {
         tray.state = state;
@@ -573,6 +591,9 @@ fn serial_loop(
                                 }
                                 tray.detail = detail;
                             });
+                            if state == Some(TrayState::Off) {
+                                let _ = status::write("off", None, None);
+                            }
                             next_poll = Instant::now() + Duration::from_millis(500);
                         }
                     }
@@ -593,17 +614,31 @@ fn serial_loop(
     }
 }
 
-fn acquire_single_instance() -> Option<File> {
-    let path = runtime_dir().join("gsp370-tray.lock");
+fn acquire_single_instance() -> std::io::Result<File> {
+    status::ensure_dir()?;
     let file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(false)
-        .open(path)
-        .ok()?;
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(status::lock_path())?;
+    let _ = file.set_permissions(fs::Permissions::from_mode(0o600));
     let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    if rc == 0 { Some(file) } else { None }
+    if rc == 0 {
+        Ok(file)
+    } else {
+        let error = std::io::Error::last_os_error();
+        if error.kind() == std::io::ErrorKind::WouldBlock {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::WouldBlock,
+                "another instance is already running",
+            ))
+        } else {
+            Err(error)
+        }
+    }
 }
 
 fn cli_device(args: &[String]) -> Option<String> {
@@ -645,6 +680,76 @@ fn parse_percent(value: &str) -> Result<u8, String> {
     Ok(percent)
 }
 
+fn print_probe_status(device: Option<&str>) {
+    let code = match probe(device) {
+        Probe::Connected { battery, path } => {
+            println!("state=on");
+            println!("battery={battery}");
+            println!("device={path}");
+            0
+        }
+        Probe::Off => {
+            println!("state=off");
+            2
+        }
+        Probe::NoDevice(_) => {
+            println!("state=no-dongle");
+            1
+        }
+        Probe::Permission(_) => {
+            println!("state=permission");
+            1
+        }
+        Probe::Error(_) => {
+            println!("state=error");
+            1
+        }
+    };
+    let _ = std::io::stdout().flush();
+    std::process::exit(code);
+}
+
+fn status_command(device: Option<&str>) {
+    if device.is_none() {
+        if let Some(cached) = status::read() {
+            cached.print();
+            let code = match cached.state.as_str() {
+                "off" => 2,
+                "no-dongle" | "permission" | "error" => 1,
+                _ => 0,
+            };
+            let _ = std::io::stdout().flush();
+            std::process::exit(code);
+        }
+    }
+    print_probe_status(device);
+}
+
+fn validate_args(args: &[String]) -> Result<(), String> {
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "--battery" | "-b" | "--probe" | "-p" | "--status" | "--help" | "-h" | "--version"
+            | "-v" => {
+                index += 1;
+            }
+            "--set-sidetone" | "-s" | "--device" | "-d" => {
+                if index + 1 >= args.len() {
+                    return Err(format!("{arg} requires a value"));
+                }
+                index += 2;
+            }
+            _ if arg.starts_with("--set-sidetone=") || arg.starts_with("--device=") => {
+                index += 1;
+            }
+            _ if arg.starts_with('-') => return Err(format!("unknown option: {arg}")),
+            _ => return Err(format!("unexpected argument: {arg}")),
+        }
+    }
+    Ok(())
+}
+
 fn print_help() {
     println!(
         "gsp370-tray {VERSION}\n\
@@ -663,6 +768,10 @@ fn print_help() {
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
+    if let Err(error) = validate_args(&args) {
+        eprintln!("gsp370-tray: {error}");
+        std::process::exit(1);
+    }
     let cli = args.iter().any(|arg| {
         matches!(
             arg.as_str(),
@@ -670,6 +779,7 @@ fn main() {
                 | "-b"
                 | "--probe"
                 | "-p"
+                | "--status"
                 | "--set-sidetone"
                 | "-s"
                 | "--help"
@@ -678,6 +788,10 @@ fn main() {
                 | "-v"
         ) || arg.starts_with("--set-sidetone=")
     });
+    if !cli && !args.is_empty() {
+        eprintln!("gsp370-tray: no action requested; use --battery, --probe or --status");
+        std::process::exit(1);
+    }
 
     if cli {
         if args.iter().any(|arg| arg == "--help" || arg == "-h") {
@@ -701,9 +815,17 @@ fn main() {
                 Ok(()) => println!("sidetone={percent}%"),
                 Err(error) => {
                     eprintln!("gsp370-tray: {}", error.message);
-                    std::process::exit(if error.code == ErrorCode::HeadsetOff { 2 } else { 1 });
+                    std::process::exit(if error.code == ErrorCode::HeadsetOff {
+                        2
+                    } else {
+                        1
+                    });
                 }
             }
+            return;
+        }
+        if args.iter().any(|arg| arg == "--status") {
+            status_command(device.as_deref());
             return;
         }
         if args.iter().any(|arg| arg == "--battery" || arg == "-b") {
@@ -753,10 +875,18 @@ fn main() {
         return;
     }
 
-    let Some(_lock) = acquire_single_instance() else {
-        eprintln!("gsp370-tray: another instance is already running");
-        std::process::exit(0);
+    let _lock = match acquire_single_instance() {
+        Ok(lock) => lock,
+        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+            eprintln!("gsp370-tray: {}", error);
+            std::process::exit(0);
+        }
+        Err(error) => {
+            eprintln!("gsp370-tray: cannot create runtime state: {error}");
+            std::process::exit(1);
+        }
     };
+    let _ = status::write("unknown", None, None);
 
     let config = load_config();
     let (tx, rx) = mpsc::channel();
@@ -776,5 +906,95 @@ fn main() {
 
     loop {
         thread::park();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_config_with_header_and_unknown_keys() {
+        let config = parse_config("# gsp370-tray config v1\nsidetone=37\nalerts=0\nfuture=value\n");
+        assert_eq!(config.sidetone, 37);
+        assert!(!config.alerts);
+
+        let defaults = parse_config("garbage\nsidetone=not-a-number\n");
+        assert_eq!(defaults.sidetone, Config::default().sidetone);
+        assert!(defaults.alerts);
+    }
+
+    #[test]
+    fn clamps_sidetone_config() {
+        assert_eq!(parse_config("sidetone=250\n").sidetone, 100);
+    }
+
+    #[test]
+    fn validates_percentages() {
+        assert_eq!(parse_percent("0"), Ok(0));
+        assert_eq!(parse_percent("100"), Ok(100));
+        assert_eq!(
+            parse_percent("101"),
+            Err("sidetone must be an integer from 0 to 100".into())
+        );
+        assert!(parse_percent("nope").is_err());
+    }
+
+    #[test]
+    fn poll_intervals_are_bounded() {
+        assert_eq!(poll_interval(TrayState::Connected), Duration::from_secs(60));
+        assert_eq!(poll_interval(TrayState::Off), Duration::from_secs(20));
+        assert_eq!(poll_interval(TrayState::NoDongle), Duration::from_secs(15));
+        assert_eq!(
+            poll_interval(TrayState::Permission),
+            Duration::from_secs(60)
+        );
+        assert_eq!(poll_interval(TrayState::Error), Duration::from_secs(30));
+        assert_eq!(poll_interval(TrayState::Unknown), Duration::from_secs(5));
+    }
+
+    #[test]
+    fn status_names_match_the_cache_contract() {
+        assert_eq!(state_name(TrayState::Connected), "on");
+        assert_eq!(state_name(TrayState::Off), "off");
+        assert_eq!(state_name(TrayState::NoDongle), "no-dongle");
+        assert_eq!(state_name(TrayState::Permission), "permission");
+        assert_eq!(state_name(TrayState::Error), "error");
+        assert_eq!(state_name(TrayState::Unknown), "unknown");
+    }
+
+    #[test]
+    fn low_battery_notifications_are_edge_triggered_and_reset() {
+        let mut bits = 0u8;
+        reset_low_notifications(50, None, &mut bits);
+        assert_eq!(bits, 0);
+        assert_eq!(take_low_notification(25, &mut bits), None);
+        assert_eq!(take_low_notification(19, &mut bits), Some(20));
+        assert_eq!(bits, 1);
+        assert_eq!(take_low_notification(19, &mut bits), None);
+        assert_eq!(take_low_notification(9, &mut bits), Some(10));
+        assert_eq!(bits, 3);
+        assert_eq!(take_low_notification(4, &mut bits), Some(5));
+        assert_eq!(bits, 7);
+        assert_eq!(take_low_notification(4, &mut bits), None);
+
+        reset_low_notifications(30, Some(4), &mut bits);
+        assert_eq!(bits, 0);
+        assert_eq!(take_low_notification(19, &mut bits), Some(20));
+
+        reset_low_notifications(22, Some(20), &mut bits);
+        assert_eq!(bits, 1);
+        reset_low_notifications(23, Some(20), &mut bits);
+        assert_eq!(bits, 0);
+    }
+
+    #[test]
+    fn rejects_unknown_cli_options_and_missing_values() {
+        let args = |items: &[&str]| items.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(validate_args(&args(&["--battery"])).is_ok());
+        assert!(validate_args(&args(&["--status", "--device", "/dev/ttyACM0"])).is_ok());
+        assert!(validate_args(&args(&["--batter"])).is_err());
+        assert!(validate_args(&args(&["--battery", "--device"])).is_err());
+        assert!(validate_args(&args(&["extra"])).is_err());
     }
 }

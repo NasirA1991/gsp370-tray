@@ -51,8 +51,8 @@ the tray reports a permission error.
 
 Download the latest `gsp370-tray-*-x86_64.tar.gz` from
 [GitHub Releases](https://github.com/NasirA1991/gsp370-tray/releases).  The
-archive contains the binary, desktop file, icon, udev rule and a short
-`INSTALL.txt`.
+archive contains the binary, desktop file, icon, udev rule, the Plasma widget
+and a short `INSTALL.txt`.
 
 ### Build from source
 
@@ -68,8 +68,8 @@ python3 tests/e2e_pty.py ./rust/target/release/gsp370-tray
 sudo ./scripts/install.sh
 ```
 
-`scripts/install.sh` installs the binary under `/usr/local`, installs the
-desktop/icon files, and installs the udev rule to
+`scripts/install.sh` installs the binary under `/usr/local`, the desktop/icon
+files, the Plasma widget, and the udev rule at
 `/etc/udev/rules.d/70-gsp370.rules`.
 
 ## Usage
@@ -88,6 +88,7 @@ CLI:
 ```bash
 gsp370-tray --battery          # prints percentage, or "off" and exits 2
 gsp370-tray --probe            # device path, link state and battery
+gsp370-tray --status           # cached/probed state for the Plasma widget
 gsp370-tray --set-sidetone 30  # 0 = off, 100 = maximum
 gsp370-tray --device /dev/ttyACM1 --battery
 ```
@@ -96,18 +97,28 @@ The sidetone level is not readable from the headset, so the menu shows the
 last value set by this app.  Sidetone is only audible while the microphone is
 in use.
 
+### Environment
+
+- `GSP370_TTY=/dev/ttyACM1` — override the dongle device (useful for tests).
+- `GSP370_TEXT_COLOR=R,G,B` — override the icon text colour, for unusual panel themes.
+
+The Plasma widget uses a small status cache written by the tray.  It reads
+that cache instead of opening the serial port, and falls back to `--status`
+only when the tray has stopped.
+
 ## Troubleshooting
 
-### Permission denied on `/dev/ttyACM0`
+### Permission denied on `/dev/ttyACMn`
 
 ```bash
 sudo install -Dm644 packaging/70-gsp370.rules /etc/udev/rules.d/70-gsp370.rules
 sudo udevadm control --reload-rules
-sudo udevadm trigger --action=add /sys/class/tty/ttyACM0
+sudo udevadm trigger --action=add /sys/class/tty/ttyACMn  # use your dongle node
 ```
 
-Then replug the dongle.  If your system does not apply logind seat ACLs, add
-your user to `uucp` and log out/in:
+Replace `ttyACMn` with the node shown by `ls /dev/ttyACM*`.  Then replug the
+dongle.  If your system does not apply logind seat ACLs, add your user to
+`uucp` and log out/in:
 
 ```bash
 sudo usermod -aG uucp "$USER"

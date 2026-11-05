@@ -1,4 +1,4 @@
-use ab_glyph::{Font, FontRef, PxScale, ScaleFont, point};
+use ab_glyph::{point, Font, FontRef, PxScale, ScaleFont};
 use ksni::Icon;
 use std::env;
 use std::fs;
@@ -24,16 +24,36 @@ const FONT_BYTES: &[u8] = include_bytes!("../assets/NotoSans-Medium-digits.ttf")
 // A crisp one-pixel 5x7 face for the 16 px tray icon.  Antialiased outlines
 // turn into grey mush at that size; these keep the strokes thin and white.
 const DIGITS5: [[u8; 7]; 10] = [
-    [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110],
-    [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110],
-    [0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111],
-    [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110],
-    [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010],
-    [0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110],
-    [0b00110, 0b01000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110],
-    [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000],
-    [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110],
-    [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100],
+    [
+        0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110,
+    ],
+    [
+        0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110,
+    ],
+    [
+        0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111,
+    ],
+    [
+        0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110,
+    ],
+    [
+        0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010,
+    ],
+    [
+        0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110,
+    ],
+    [
+        0b00110, 0b01000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110,
+    ],
+    [
+        0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000,
+    ],
+    [
+        0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110,
+    ],
+    [
+        0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00010, 0b01100,
+    ],
 ];
 
 // Segment bits: A B C D E F G.
@@ -113,13 +133,41 @@ impl TextMask {
                         alpha[py * size as usize + px] = 1.0;
                     }
                 };
-                if pattern & 0b1000000 != 0 { for x in 1..=5 { put(x, 0); } } // A
-                if pattern & 0b0100000 != 0 { for y in 1..=4 { put(6, y); } } // B
-                if pattern & 0b0010000 != 0 { for y in 5..=8 { put(6, y); } } // C
-                if pattern & 0b0001000 != 0 { for x in 1..=5 { put(x, 9); } } // D
-                if pattern & 0b0000100 != 0 { for y in 5..=8 { put(0, y); } } // E
-                if pattern & 0b0000010 != 0 { for y in 1..=4 { put(0, y); } } // F
-                if pattern & 0b0000001 != 0 { for x in 1..=5 { put(x, 4); } } // G
+                if pattern & 0b1000000 != 0 {
+                    for x in 1..=5 {
+                        put(x, 0);
+                    }
+                } // A
+                if pattern & 0b0100000 != 0 {
+                    for y in 1..=4 {
+                        put(6, y);
+                    }
+                } // B
+                if pattern & 0b0010000 != 0 {
+                    for y in 5..=8 {
+                        put(6, y);
+                    }
+                } // C
+                if pattern & 0b0001000 != 0 {
+                    for x in 1..=5 {
+                        put(x, 9);
+                    }
+                } // D
+                if pattern & 0b0000100 != 0 {
+                    for y in 5..=8 {
+                        put(0, y);
+                    }
+                } // E
+                if pattern & 0b0000010 != 0 {
+                    for y in 1..=4 {
+                        put(0, y);
+                    }
+                } // F
+                if pattern & 0b0000001 != 0 {
+                    for x in 1..=5 {
+                        put(x, 4);
+                    }
+                } // G
             }
             return Some(Self { size, alpha });
         }
@@ -202,7 +250,9 @@ fn config_home() -> Option<PathBuf> {
             return Some(PathBuf::from(value));
         }
     }
-    env::var("HOME").ok().map(|home| PathBuf::from(home).join(".config"))
+    env::var("HOME")
+        .ok()
+        .map(|home| PathBuf::from(home).join(".config"))
 }
 
 fn kde_window_background() -> Option<[u8; 3]> {
@@ -289,8 +339,7 @@ fn sample(
             let color = if state == TrayState::Connected {
                 if let Some(level) = battery {
                     let mut angle = dy.atan2(dx);
-                    angle = (angle + std::f64::consts::FRAC_PI_2)
-                        .rem_euclid(std::f64::consts::TAU);
+                    angle = (angle + std::f64::consts::FRAC_PI_2).rem_euclid(std::f64::consts::TAU);
                     if angle / std::f64::consts::TAU <= level.min(100) as f64 / 100.0 {
                         accent(state, battery)
                     } else {
@@ -347,12 +396,7 @@ fn render(size: i32, state: TrayState, battery: Option<u8>, text_color: [u8; 3])
                 for px in 0..size {
                     let coverage = mask.at(px as f64, py as f64);
                     if coverage > 0.5 {
-                        data.extend_from_slice(&[
-                            255,
-                            text_color[0],
-                            text_color[1],
-                            text_color[2],
-                        ]);
+                        data.extend_from_slice(&[255, text_color[0], text_color[1], text_color[2]]);
                     } else {
                         data.extend_from_slice(&[0, 0, 0, 0]);
                     }
@@ -370,15 +414,8 @@ fn render(size: i32, state: TrayState, battery: Option<u8>, text_color: [u8; 3])
                 for ox in 0..3 {
                     let x = px as f64 + (ox as f64 + 0.5) / 3.0;
                     let y = py as f64 + (oy as f64 + 0.5) / 3.0;
-                    let sample = sample(
-                        x,
-                        y,
-                        size as f64,
-                        state,
-                        battery,
-                        text.as_ref(),
-                        text_color,
-                    );
+                    let sample =
+                        sample(x, y, size as f64, state, battery, text.as_ref(), text_color);
                     let alpha = sample[3];
                     alpha_sum += alpha;
                     rgb_sum[0] += sample[0] * alpha;

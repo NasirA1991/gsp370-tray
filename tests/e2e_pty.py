@@ -16,6 +16,7 @@ import pty
 import select
 import subprocess
 import sys
+import tempfile
 import termios
 import time
 import tty
@@ -72,19 +73,6 @@ class FakeDongle:
 
     def event(self) -> None:
         os.write(self.master, b"\x04\xe9\x00")
-
-
-def run_cli(binary: str, path: str, *args: str) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
-    env.pop("GSP370_TTY", None)
-    return subprocess.run(
-        [binary, *args, "--device", path],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        timeout=15,
-        env=env,
-    )
 
 
 def test_battery(binary: str) -> None:
@@ -153,12 +141,78 @@ def test_sidetone(binary: str) -> None:
         dongle.close()
 
 
+def test_status_cache(binary: str) -> None:
+    with tempfile.TemporaryDirectory() as state_dir:
+        status_path = os.path.join(state_dir, "status")
+        with open(status_path, "w", encoding="utf-8") as handle:
+            handle.write("version=1\nstate=on\nbattery=87\ndevice=/dev/ttyACM0\n")
+        env = os.environ.copy()
+        env["GSP370_STATE_DIR"] = state_dir
+        # A fresh cache must be used without touching this device.
+        env["GSP370_TTY"] = "/dev/definitely-not-a-dongle"
+        proc = subprocess.run(
+            [binary, "--status"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=10,
+            env=env,
+        )
+        assert proc.returncode == 0, (proc.returncode, proc.stdout, proc.stderr)
+        assert proc.stdout.splitlines() == [
+            "state=on",
+            "battery=87",
+            "device=/dev/ttyACM0",
+        ], repr(proc.stdout)
+
+
+def test_status_fallback(binary: str) -> None:
+    dongle = FakeDongle()
+    try:
+        with tempfile.TemporaryDirectory() as state_dir:
+            status_path = os.path.join(state_dir, "status")
+            with open(status_path, "w", encoding="utf-8") as handle:
+                handle.write("version=1\nstate=on\nbattery=99\n")
+            old = time.time() - 300
+            os.utime(status_path, (old, old))
+
+            env = os.environ.copy()
+            env["GSP370_STATE_DIR"] = state_dir
+            env["GSP370_TTY"] = dongle.path
+            proc = subprocess.Popen(
+                [binary, "--status"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=env,
+            )
+            opcode, params = dongle.next_command()
+            assert opcode == 0x9C, hex(opcode)
+            assert params == b"", params
+            dongle.reply(0x9C, 0, bytes((87,)))
+            out, err = proc.communicate(timeout=10)
+            assert proc.returncode == 0, (proc.returncode, out, err)
+            assert out.splitlines() == [
+                "state=on",
+                "battery=87",
+                f"device={dongle.path}",
+            ], repr(out)
+    finally:
+        dongle.close()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("binary", nargs="?", default="./build/gsp370-tray")
     args = parser.parse_args()
 
-    for test in (test_battery, test_headset_off, test_sidetone):
+    for test in (
+        test_battery,
+        test_headset_off,
+        test_sidetone,
+        test_status_cache,
+        test_status_fallback,
+    ):
         test(args.binary)
         print(f"PASS {test.__name__}")
     print("All PTY end-to-end tests passed.")

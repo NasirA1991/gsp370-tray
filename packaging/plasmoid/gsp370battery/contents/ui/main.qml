@@ -13,6 +13,7 @@ PlasmoidItem {
     property int percent: -1
     property bool busy: false
     property bool darkPanel: true
+    property string linkState: "unknown"
     readonly property color labelColor: root.darkPanel ? "#f5f7fa" : "#1c1e22"
 
     Plasmoid.title: "GSP 370 Battery"
@@ -20,7 +21,24 @@ PlasmoidItem {
     Plasmoid.status: percent >= 0 ? PlasmaCore.Types.ActiveStatus : PlasmaCore.Types.PassiveStatus
 
     toolTipMainText: "GSP 370"
-    toolTipSubText: percent >= 0 ? i18n("Battery: %1%", percent) : i18n("Headset off")
+    toolTipSubText: root.stateText()
+
+    function stateText() {
+        switch (root.linkState) {
+        case "on":
+            return root.percent >= 0 ? i18n("Battery: %1%", root.percent) : i18n("Connected");
+        case "off":
+            return i18n("Headset off");
+        case "no-dongle":
+            return i18n("Dongle not found");
+        case "permission":
+            return i18n("Serial permission denied");
+        case "error":
+            return i18n("Connection problem");
+        default:
+            return i18n("Starting…");
+        }
+    }
 
     compactRepresentation: Item {
         implicitWidth: label.visible ? label.implicitWidth : 0
@@ -52,7 +70,7 @@ PlasmoidItem {
         implicitHeight: Kirigami.Units.gridUnit * 3
         PlasmaComponents3.Label {
             anchors.centerIn: parent
-            text: root.percent >= 0 ? i18n("GSP 370: %1%", root.percent) : i18n("GSP 370: headset off")
+            text: i18n("GSP 370: %1", root.stateText())
             color: root.labelColor
         }
     }
@@ -77,13 +95,26 @@ PlasmoidItem {
         engine: "executable"
         connectedSources: []
         onNewData: (source, data) => {
-            const output = String(data["stdout"] ?? "").trim();
-            const value = parseInt(output, 10);
-            if (Number.isFinite(value) && value >= 0 && value <= 100) {
-                root.percent = value;
-            } else {
-                root.percent = -1;
-            }
+            let state = "unknown";
+            let value = -1;
+            String(data["stdout"] ?? "").split("\n").forEach(line => {
+                const separator = line.indexOf("=");
+                if (separator < 0) {
+                    return;
+                }
+                const key = line.slice(0, separator).trim();
+                const text = line.slice(separator + 1).trim();
+                if (key === "state") {
+                    state = text;
+                } else if (key === "battery") {
+                    const parsed = parseInt(text, 10);
+                    if (Number.isFinite(parsed)) {
+                        value = parsed;
+                    }
+                }
+            });
+            root.linkState = state;
+            root.percent = state === "on" && value >= 0 && value <= 100 ? value : -1;
             root.busy = false;
             batterySource.disconnectSource(source);
         }
@@ -106,6 +137,6 @@ PlasmoidItem {
             return;
         }
         root.busy = true;
-        batterySource.connectSource("gsp370-tray --battery");
+        batterySource.connectSource("sh -c 'for p in \"$HOME/.local/bin/gsp370-tray\" /usr/bin/gsp370-tray /usr/local/bin/gsp370-tray; do [ -x \"$p\" ] && exec \"$p\" --status; done; exit 1'");
     }
 }

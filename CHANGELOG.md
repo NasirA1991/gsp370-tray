@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.2.0 — 2026-11-05
+
+- The tray now writes an atomic status cache. The Plasma widget reads that
+  cache instead of opening the serial port, eliminating the tray/widget
+  serial race; it falls back to a probe when the tray is not running.
+- The widget distinguishes headset off, no dongle, permission and connection
+  errors, and finds the CLI in `/usr/bin`, `~/.local/bin` or `/usr/local/bin`.
+- Added `--status` and reject unknown CLI options/missing option values.
+- Retried interrupted `poll()` calls instead of reporting a false timeout.
+- Made port selection deterministic and removed an unreachable parser branch.
+- Config and autostart writes are atomic; runtime state and lock files live in
+  a private directory.
+- Added push/PR CI with fmt, clippy, unit tests, PTY tests and an aarch64
+  compile check; added tests for config, low-battery, status and CLI parsing.
+- AUR PKGBUILD is now generated from a template; manual install/uninstall now
+  handles the Plasma widget and the correct config path.
+
 ## 2.1.2 — 2026-11-04
 
 - Added the Plasma 6 compatibility metadata key so the widget is accepted by

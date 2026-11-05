@@ -69,6 +69,7 @@ jobs:
           cp rust/target/release/gsp370-tray "$BUNDLE/"
           cp packaging/gsp370-tray.desktop packaging/gsp370-tray.svg \
              packaging/70-gsp370.rules "$BUNDLE/"
+          cp -a packaging/plasmoid/gsp370battery "$BUNDLE/"
           cp README.md LICENSE "$BUNDLE/"
           cp docs/protocol.md docs/tray-icon.png "$BUNDLE/docs/"
           cat > "$BUNDLE/INSTALL.txt" <<EOF
@@ -78,8 +79,10 @@ jobs:
             sudo install -Dm644 gsp370-tray.desktop /usr/local/share/applications/gsp370-tray.desktop
             sudo install -Dm644 gsp370-tray.svg /usr/local/share/icons/hicolor/scalable/apps/gsp370-tray.svg
             sudo install -Dm644 70-gsp370.rules /etc/udev/rules.d/70-gsp370.rules
+            sudo install -d /usr/local/share/plasma/plasmoids/org.nasir.gsp370battery
+            sudo cp -a gsp370battery/. /usr/local/share/plasma/plasmoids/org.nasir.gsp370battery/
             sudo udevadm control --reload-rules
-            sudo udevadm trigger --action=add /sys/class/tty/ttyACM0
+            sudo udevadm trigger --action=add /sys/class/tty/ttyACMn  # use your dongle node
 
           Run `gsp370-tray` and click the tray icon.  Replug the dongle once if the
           port permission is not picked up immediately.
@@ -97,9 +100,9 @@ jobs:
           set -euo pipefail
           rm -rf aur-build
           mkdir -p aur-build
-          cp packaging/aur/PKGBUILD packaging/aur/gsp370-tray.install aur-build/
-          sed -i "s/^pkgver=.*/pkgver=$VERSION/" aur-build/PKGBUILD
-          sed -i "s/^sha256sums=.*/sha256sums=('$SOURCE_SHA256')/" aur-build/PKGBUILD
+          sed -e "s/@VERSION@/$VERSION/" -e "s/@SHA256@/$SOURCE_SHA256/" \
+            packaging/aur/PKGBUILD.in > aur-build/PKGBUILD
+          cp packaging/aur/gsp370-tray.install aur-build/
           cp "dist/gsp370-tray-$VERSION-source.tar.gz" aur-build/
 
           docker run --rm \
@@ -158,6 +161,7 @@ jobs:
       - name: Publish AUR package
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          AUR_HOST_FINGERPRINT: SHA256:RFzBCUItH9LZS0cKB5UE6ceAYhBD5C8GeOBip8Z11+4
         run: |
           set -euo pipefail
           test -n "$AUR_SSH_PRIVATE_KEY"
@@ -165,7 +169,10 @@ jobs:
           mkdir -p "$HOME/.ssh"
           printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > "$HOME/.ssh/aur"
           chmod 600 "$HOME/.ssh/aur"
-          ssh-keyscan aur.archlinux.org >> "$HOME/.ssh/known_hosts"
+          host_key="$(ssh-keyscan -t ed25519 aur.archlinux.org 2>/dev/null)"
+          actual_fingerprint="$(printf '%s\n' "$host_key" | ssh-keygen -lf - | awk 'NR == 1 {print $2}')"
+          test "$actual_fingerprint" = "$AUR_HOST_FINGERPRINT"
+          printf '%s\n' "$host_key" >> "$HOME/.ssh/known_hosts"
 
           export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
           rm -rf aur-repo

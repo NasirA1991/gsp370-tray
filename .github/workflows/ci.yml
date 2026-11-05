@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: aarch64-unknown-linux-gnu
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Format
+        working-directory: rust
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: rust
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Unit tests
+        working-directory: rust
+        run: cargo test --locked
+
+      - name: Build
+        working-directory: rust
+        run: cargo build --locked
+
+      - name: aarch64 compile check
+        working-directory: rust
+        run: cargo check --locked --target aarch64-unknown-linux-gnu
+
+      - name: PTY end-to-end tests
+        working-directory: rust
+        run: python3 ../tests/e2e_pty.py ./target/debug/gsp370-tray
