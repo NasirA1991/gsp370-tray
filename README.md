@@ -93,6 +93,9 @@ gsp370-tray --set-sidetone 30  # 0 = off, 100 = maximum
 gsp370-tray --device /dev/ttyACM1 --battery
 ```
 
+`--device` also works when starting the tray in the normal no-action mode:
+`gsp370-tray --device /dev/ttyACM1`.
+
 The sidetone level is not readable from the headset, so the menu shows the
 last value set by this app.  Sidetone is only audible while the microphone is
 in use.
