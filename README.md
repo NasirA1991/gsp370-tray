@@ -19,7 +19,7 @@ audio server is required.
 - Headset on/off detection and automatic reconnect
 - Hides from the tray while the headset is off (KDE “only show when relevant”)
 - Start-at-login toggle
-- CLI for scripting: `--battery`, `--probe`, `--set-sidetone`
+- CLI for scripting: `--battery`, `--probe`, `--status`, `--set-sidetone`
 - Small native binary; no web view or audio processing
 
 **Not included:** equalizer/surround effects and firmware updates.  The EQ in
@@ -56,7 +56,7 @@ and a short `INSTALL.txt`.
 
 ### Build from source
 
-Requirements: Rust 1.80+ and a C linker.
+Requirements: Rust 1.89+ and a C linker.
 
 ```bash
 git clone https://github.com/NasirA1991/gsp370-tray.git
@@ -102,9 +102,9 @@ in use.
 - `GSP370_TTY=/dev/ttyACM1` — override the dongle device (useful for tests).
 - `GSP370_TEXT_COLOR=R,G,B` — override the icon text colour, for unusual panel themes.
 
-The Plasma widget uses a small status cache written by the tray.  It reads
-that cache instead of opening the serial port, and falls back to `--status`
-only when the tray has stopped.
+The Plasma widget calls `gsp370-tray --status` every minute. That command
+reads the tray's status cache and only probes the serial port when the cache
+is missing or stale.
 
 ## Troubleshooting
 
@@ -168,8 +168,9 @@ Protocol notes and reverse-engineering evidence are in
 Push a tag matching the version in `rust/Cargo.toml`:
 
 ```bash
-git tag v2.0.2
-git push origin v2.0.2
+VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml | head -1)"
+git tag "v$VERSION"
+git push origin "v$VERSION"
 ```
 
 The `Release` workflow runs the tests, builds the source/binary/Arch
@@ -178,4 +179,7 @@ the `AUR_SSH_PRIVATE_KEY` repository secret.
 
 ## License
 
-MIT.  Not affiliated with or endorsed by EPOS, Sennheiser or Demant.
+MIT.  The embedded Noto Sans Medium digit subset is licensed under the SIL
+Open Font License 1.1; see `rust/assets/NotoSans-OFL.txt`.
+
+Not affiliated with or endorsed by EPOS, Sennheiser or Demant.

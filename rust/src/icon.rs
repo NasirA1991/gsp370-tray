@@ -18,7 +18,8 @@ const SIZES: [i32; 7] = [16, 22, 24, 32, 48, 64, 128];
 
 // Subset of Noto Sans Medium containing only the ten digits.  Keeping the
 // font embedded avoids fontconfig, Pango and Qt, and lets us render a smooth,
-// not-too-heavy face without a runtime font dependency.
+// not-too-heavy face without a runtime font dependency.  The subset is
+// licensed under the SIL Open Font License 1.1; see assets/NotoSans-OFL.txt.
 const FONT_BYTES: &[u8] = include_bytes!("../assets/NotoSans-Medium-digits.ttf");
 
 // A crisp one-pixel 5x7 face for the 16 px tray icon.  Antialiased outlines
@@ -76,37 +77,43 @@ struct TextMask {
 }
 
 impl TextMask {
+    fn bitmap_mask(size: u32, label: &str, gap: usize) -> Option<Self> {
+        let glyphs: Vec<[u8; 7]> = label
+            .bytes()
+            .map(|b| DIGITS5[(b - b'0') as usize])
+            .collect();
+        let units = glyphs.len() * 5 + gap * glyphs.len().saturating_sub(1);
+        if units > size as usize {
+            return None;
+        }
+        let left = (size as usize - units) / 2;
+        let top = (size as usize - 7) / 2;
+        let mut alpha = vec![0.0f32; (size * size) as usize];
+        for (index, glyph) in glyphs.iter().enumerate() {
+            for (gy, row) in glyph.iter().enumerate() {
+                for gx in 0..5 {
+                    if (row & (1 << (4 - gx))) != 0 {
+                        let px = left + index * (5 + gap) + gx;
+                        let py = top + gy;
+                        if px < size as usize && py < size as usize {
+                            alpha[py * size as usize + px] = 1.0;
+                        }
+                    }
+                }
+            }
+        }
+        Some(Self { size, alpha })
+    }
+
     fn new(size: u32, label: &str) -> Option<Self> {
         if label.is_empty() || !label.bytes().all(|b| b.is_ascii_digit()) {
             return None;
         }
 
         if size <= 18 {
-            let glyphs: Vec<[u8; 7]> = label
-                .bytes()
-                .map(|b| DIGITS5[(b - b'0') as usize])
-                .collect();
-            let units = glyphs.len() * 5 + glyphs.len().saturating_sub(1);
-            if units > size as usize {
-                return None;
-            }
-            let left = (size as usize - units) / 2;
-            let top = (size as usize - 7) / 2;
-            let mut alpha = vec![0.0f32; (size * size) as usize];
-            for (index, glyph) in glyphs.iter().enumerate() {
-                for (gy, row) in glyph.iter().enumerate() {
-                    for gx in 0..5 {
-                        if (row & (1 << (4 - gx))) != 0 {
-                            let px = left + index * 6 + gx;
-                            let py = top + gy;
-                            if px < size as usize && py < size as usize {
-                                alpha[py * size as usize + px] = 1.0;
-                            }
-                        }
-                    }
-                }
-            }
-            return Some(Self { size, alpha });
+            let five_units = label.len() * 5 + label.len().saturating_sub(1);
+            let gap = usize::from(five_units <= size as usize);
+            return Self::bitmap_mask(size, label, gap);
         }
 
         if size <= 24 {
@@ -119,7 +126,12 @@ impl TextMask {
                 .collect();
             let units = glyphs.len() * 7 + glyphs.len().saturating_sub(1);
             if units > size as usize {
-                return None;
+                // Three digits do not fit the seven-segment face at 22 px.
+                // Fall back to the 5x7 face, using a zero gap at 16 px when
+                // necessary so 100 % still shows a number.
+                let five_units = label.len() * 5 + label.len().saturating_sub(1);
+                let gap = usize::from(five_units <= size as usize);
+                return Self::bitmap_mask(size, label, gap);
             }
             let left = (size as usize - units) / 2;
             let top = (size as usize - 10) / 2;
@@ -466,6 +478,16 @@ mod tests {
     fn icons_have_transparent_corners() {
         for icon in icons(TrayState::Connected, Some(87), [255, 255, 255]) {
             assert_eq!(&icon.data[..4], &[0, 0, 0, 0]);
+        }
+    }
+
+    #[test]
+    fn three_digit_labels_fit_compact_icons() {
+        for size in [16, 22, 24] {
+            assert!(
+                TextMask::new(size, "100").is_some(),
+                "100% should render at {size}px"
+            );
         }
     }
 }

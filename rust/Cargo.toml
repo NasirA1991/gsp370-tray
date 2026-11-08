@@ -1,8 +1,8 @@
 [package]
 name = "gsp370-tray"
-version = "2.2.0"
+version = "2.2.1"
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.89"
 license = "MIT"
 description = "Minimal StatusNotifierItem tray for the Sennheiser/EPOS GSP 370"
 

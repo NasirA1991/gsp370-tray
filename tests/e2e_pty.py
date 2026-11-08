@@ -84,8 +84,8 @@ def test_battery(binary: str) -> None:
             stderr=subprocess.PIPE,
             text=True,
         )
-        dongle.event()
         opcode, params = dongle.next_command()
+        dongle.event()
         assert opcode == 0x9C, hex(opcode)
         assert params == b"", params
         dongle.reply(0x9C, 0, bytes((87,)))
@@ -139,6 +139,62 @@ def test_sidetone(binary: str) -> None:
         assert out.strip() == "sidetone=50%", repr(out)
     finally:
         dongle.close()
+
+
+def test_help_lists_status(binary: str) -> None:
+    proc = subprocess.run(
+        [binary, "--help"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=10,
+    )
+    assert proc.returncode == 0, (proc.returncode, proc.stdout, proc.stderr)
+    assert "--status" in proc.stdout, repr(proc.stdout)
+
+
+def test_sidetone_off(binary: str) -> None:
+    dongle = FakeDongle()
+    try:
+        proc = subprocess.Popen(
+            [binary, "--set-sidetone", "0", "--device", dongle.path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        first_op, first_params = dongle.next_command()
+        assert first_op == 0xA1, hex(first_op)
+        assert first_params == b"", first_params
+        dongle.reply(0xA1)
+
+        second_op, second_params = dongle.next_command()
+        assert second_op == 0xA2, hex(second_op)
+        assert second_params == b"\x00", second_params
+        dongle.reply(0xA2)
+
+        out, err = proc.communicate(timeout=10)
+        assert proc.returncode == 0, (proc.returncode, out, err)
+        assert out.strip() == "sidetone=0%", repr(out)
+    finally:
+        dongle.close()
+
+
+def test_probe(binary: str, dongle: FakeDongle) -> None:
+    proc = subprocess.Popen(
+        [binary, "--probe", "--device", dongle.path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    opcode, params = dongle.next_command()
+    assert opcode == 0x9C, hex(opcode)
+    assert params == b"", params
+    dongle.reply(0x9C, 0, bytes((87,)))
+    out, err = proc.communicate(timeout=10)
+    assert proc.returncode == 0, (proc.returncode, out, err)
+    assert f"device={dongle.path}" in out, repr(out)
+    assert "status=on" in out, repr(out)
+    assert "battery=87" in out, repr(out)
 
 
 def test_status_cache(binary: str) -> None:
@@ -203,18 +259,27 @@ def test_status_fallback(binary: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("binary", nargs="?", default="./build/gsp370-tray")
+    parser.add_argument("binary", nargs="?", default="./rust/target/release/gsp370-tray")
     args = parser.parse_args()
 
     for test in (
         test_battery,
         test_headset_off,
         test_sidetone,
+        test_sidetone_off,
         test_status_cache,
         test_status_fallback,
+        test_help_lists_status,
     ):
         test(args.binary)
         print(f"PASS {test.__name__}")
+
+    probe_dongle = FakeDongle()
+    try:
+        test_probe(args.binary, probe_dongle)
+        print("PASS test_probe")
+    finally:
+        probe_dongle.close()
     print("All PTY end-to-end tests passed.")
     return 0
 

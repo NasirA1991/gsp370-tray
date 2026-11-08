@@ -15,10 +15,14 @@ PlasmoidItem {
     property bool darkPanel: true
     property string linkState: "unknown"
     readonly property color labelColor: root.darkPanel ? "#f5f7fa" : "#1c1e22"
+    readonly property bool hasError: linkState === "no-dongle" || linkState === "permission" || linkState === "error"
+    readonly property bool showCompact: (linkState === "on" && percent >= 0) || hasError
+    readonly property string compactText: linkState === "on" && percent >= 0 ? percent + "%" : (hasError ? "!" : "")
 
     Plasmoid.title: "GSP 370 Battery"
+    Plasmoid.icon: "audio-headset"
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
-    Plasmoid.status: percent >= 0 ? PlasmaCore.Types.ActiveStatus : PlasmaCore.Types.PassiveStatus
+    Plasmoid.status: showCompact ? PlasmaCore.Types.ActiveStatus : PlasmaCore.Types.PassiveStatus
 
     toolTipMainText: "GSP 370"
     toolTipSubText: root.stateText()
@@ -53,8 +57,8 @@ PlasmoidItem {
         PlasmaComponents3.Label {
             id: label
             anchors.centerIn: parent
-            visible: root.percent >= 0
-            text: visible ? root.percent + "%" : ""
+            visible: root.showCompact
+            text: root.compactText
             color: root.labelColor
         }
 
@@ -128,7 +132,26 @@ PlasmoidItem {
         onTriggered: root.refresh()
     }
 
+    Timer {
+        interval: 300000
+        repeat: true
+        running: true
+        onTriggered: root.refreshTheme()
+    }
+
+    Timer {
+        id: commandWatchdog
+        interval: 15000
+        repeat: false
+        running: root.busy
+        onTriggered: root.busy = false
+    }
+
     Component.onCompleted: {
+        root.refreshTheme();
+    }
+
+    function refreshTheme() {
         themeSource.connectSource("kreadconfig6 --file kdeglobals --group Colors:Window --key BackgroundNormal");
     }
 

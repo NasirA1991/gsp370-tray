@@ -51,7 +51,11 @@ pub fn parse_reply(received: &[u8], opcode: u8) -> Option<Reply> {
         }
         let end = i + 3 + payload_len;
         if end > received.len() {
-            return None;
+            // This candidate is incomplete.  Do not let it hide a complete
+            // matching frame that follows it (for example after serial noise
+            // or a dropped frame).
+            i += 1;
+            continue;
         }
         return Some(Reply {
             status: received[i + 6],
@@ -126,6 +130,16 @@ mod tests {
         assert_eq!(sidetone_level(50), 10);
         assert_eq!(sidetone_level(100), 16);
         assert_eq!(sidetone_level(101), 16);
+    }
+
+    #[test]
+    fn resyncs_past_an_incomplete_frame() {
+        let truncated_then_valid = [
+            0x04, 0x0E, 0x20, 0x01, 0x9C, 0xFC, // incomplete candidate
+            0x04, 0x0E, 0x05, 0x01, 0x9C, 0xFC, 0x00, 0x57,
+        ];
+        let reply = parse_reply(&truncated_then_valid, OP_BATTERY).unwrap();
+        assert_eq!(reply.values, vec![0x57]);
     }
 
     #[test]

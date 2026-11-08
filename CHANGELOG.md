@@ -1,10 +1,32 @@
 # Changelog
 
+## 2.2.1 — 2026-11-08
+
+- Corrected the declared MSRV to Rust 1.89 (the locked zbus/uuid versions
+  require it) and added an MSRV CI job.
+- Replaced the Apache-2.0 text with the actual SIL OFL 1.1 licence for the
+  embedded Noto Sans digit subset, and install it with the package.
+- Show three-digit battery values at 16/22/24 px instead of silently falling
+  back to a ring at 100 %.
+- Added `--status` to `--help` and the README feature list; fixed the stale
+  release-tag example and the widget cache wording.
+- `--device` is now honoured in tray mode instead of being rejected as a
+  missing action.
+- Resynchronise the reply parser past an incomplete header so a later valid
+  reply is not hidden.
+- Show the real stored sidetone percentage in the submenu and select the
+  nearest menu step.
+- Added a QML command watchdog, periodic theme refresh, a visible `!` error
+  state, and a widget icon.
+- Moved the PTY event injection after the command is received, fixed the
+  script's default binary path, and added probe, sidetone-off and help tests.
+- Added release concurrency grouping.
+
 ## 2.2.0 — 2026-11-05
 
 - The tray now writes an atomic status cache. The Plasma widget reads that
-  cache instead of opening the serial port, eliminating the tray/widget
-  serial race; it falls back to a probe when the tray is not running.
+  cache instead of opening the serial port, avoiding concurrent serial access
+  while the cache is fresh; a missing or stale cache falls back to a probe.
 - The widget distinguishes headset off, no dongle, permission and connection
   errors, and finds the CLI in `/usr/bin`, `~/.local/bin` or `/usr/local/bin`.
 - Added `--status` and reject unknown CLI options/missing option values.

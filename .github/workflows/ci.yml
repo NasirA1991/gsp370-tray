@@ -54,3 +54,21 @@ jobs:
       - name: PTY end-to-end tests
         working-directory: rust
         run: python3 ../tests/e2e_pty.py ./target/debug/gsp370-tray
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.89
+        uses: dtolnay/rust-toolchain@1.89.0
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Compile with MSRV
+        working-directory: rust
+        run: cargo check --locked

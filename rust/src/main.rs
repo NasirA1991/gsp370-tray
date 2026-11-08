@@ -214,11 +214,7 @@ impl AppTray {
     }
 
     fn sidetone_index(&self) -> usize {
-        if self.sidetone == 0 {
-            0
-        } else {
-            ((self.sidetone / 10).clamp(1, 10)) as usize
-        }
+        sidetone_index_for(self.sidetone)
     }
 }
 
@@ -306,7 +302,7 @@ impl ksni::Tray for AppTray {
 
         items.push(
             SubMenu {
-                label: "Sidetone".into(),
+                label: format!("Sidetone ({}%)", self.sidetone),
                 enabled: connected,
                 submenu: vec![RadioGroup {
                     selected: self.sidetone_index(),
@@ -430,6 +426,14 @@ fn poll_interval(state: TrayState) -> Duration {
         TrayState::Permission => Duration::from_secs(60),
         TrayState::Error => Duration::from_secs(30),
         TrayState::Unknown => Duration::from_secs(5),
+    }
+}
+
+fn sidetone_index_for(percent: u8) -> usize {
+    if percent == 0 {
+        0
+    } else {
+        ((usize::from(percent) + 5) / 10).clamp(1, 10)
     }
 }
 
@@ -752,20 +756,23 @@ fn validate_args(args: &[String]) -> Result<(), String> {
 
 fn print_help() {
     println!(
-        "gsp370-tray {VERSION}\n\
-         Battery and sidetone tray for the Sennheiser/EPOS GSP 370.\n\n\
-         Usage: gsp370-tray [options]\n\n\
-         Options:\n\
-           -b, --battery              print battery percentage and exit\n\
-           -p, --probe                print device, link and battery status\n\
-           -s, --set-sidetone <0-100> set sidetone and exit (0 = off)\n\
-           -d, --device <path>        override serial device (for tests)\n\
-           -h, --help                 show this help\n\
-           -v, --version              show version\n\n\
-         Without options, the StatusNotifierItem tray starts."
+        "gsp370-tray {VERSION}
+Battery and sidetone tray for the Sennheiser/EPOS GSP 370.
+
+Usage: gsp370-tray [options]
+
+Options:
+  -b, --battery              print battery percentage and exit
+  -p, --probe                print device, link and battery status
+      --status               machine-readable cached/probed status
+  -s, --set-sidetone <0-100> set sidetone and exit (0 = off)
+  -d, --device <path>        override serial device (CLI or tray)
+  -h, --help                 show this help
+  -v, --version              show version
+
+Without options, the StatusNotifierItem tray starts."
     );
 }
-
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
     if let Err(error) = validate_args(&args) {
@@ -788,7 +795,7 @@ fn main() {
                 | "-v"
         ) || arg.starts_with("--set-sidetone=")
     });
-    if !cli && !args.is_empty() {
+    if !cli && !args.is_empty() && cli_device(&args).is_none() {
         eprintln!("gsp370-tray: no action requested; use --battery, --probe or --status");
         std::process::exit(1);
     }
@@ -930,6 +937,16 @@ mod tests {
     }
 
     #[test]
+    fn sidetone_index_tracks_nearest_menu_step() {
+        assert_eq!(sidetone_index_for(0), 0);
+        assert_eq!(sidetone_index_for(30), 3);
+        assert_eq!(sidetone_index_for(34), 3);
+        assert_eq!(sidetone_index_for(35), 4);
+        assert_eq!(sidetone_index_for(37), 4);
+        assert_eq!(sidetone_index_for(100), 10);
+    }
+
+    #[test]
     fn validates_percentages() {
         assert_eq!(parse_percent("0"), Ok(0));
         assert_eq!(parse_percent("100"), Ok(100));
@@ -986,6 +1003,24 @@ mod tests {
         assert_eq!(bits, 1);
         reset_low_notifications(23, Some(20), &mut bits);
         assert_eq!(bits, 0);
+    }
+
+    #[test]
+    fn parses_device_overrides() {
+        let args = |items: &[&str]| items.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            cli_device(&args(&["--device", "/dev/ttyACM1", "--battery"])),
+            Some("/dev/ttyACM1".into())
+        );
+        assert_eq!(
+            cli_device(&args(&["-d", "/dev/ttyACM1"])),
+            Some("/dev/ttyACM1".into())
+        );
+        assert_eq!(
+            cli_device(&args(&["--device=/dev/ttyACM1"])),
+            Some("/dev/ttyACM1".into())
+        );
+        assert_eq!(cli_device(&args(&["--battery"])), None);
     }
 
     #[test]

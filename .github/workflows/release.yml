@@ -17,6 +17,10 @@ permissions:
 env:
   TAG: ${{ inputs.tag || github.ref_name }}
 
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -70,7 +74,7 @@ jobs:
           cp packaging/gsp370-tray.desktop packaging/gsp370-tray.svg \
              packaging/70-gsp370.rules "$BUNDLE/"
           cp -a packaging/plasmoid/gsp370battery "$BUNDLE/"
-          cp README.md LICENSE "$BUNDLE/"
+          cp README.md LICENSE rust/assets/NotoSans-OFL.txt "$BUNDLE/"
           cp docs/protocol.md docs/tray-icon.png "$BUNDLE/docs/"
           cat > "$BUNDLE/INSTALL.txt" <<EOF
           GSP 370 Tray $VERSION - manual install (x86_64)
