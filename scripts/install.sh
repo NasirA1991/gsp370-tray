@@ -57,6 +57,11 @@ install_system() {
         install -Dm644 "$doc" "$PREFIX/share/doc/gsp370-tray/docs/$(basename "$doc")"
     done
     install -Dm644 "$ROOT/docs/tray-icon.png" "$PREFIX/share/doc/gsp370-tray/docs/tray-icon.png"
+    for shot in "$ROOT"/docs/screenshots/*.png; do
+        [[ -e "$shot" ]] || continue
+        install -Dm644 "$shot" \
+            "$PREFIX/share/doc/gsp370-tray/docs/screenshots/$(basename "$shot")"
+    done
     install -Dm644 "$ROOT/rust/assets/NotoSans-OFL.txt" \
         "$PREFIX/share/licenses/gsp370-tray/NotoSans-OFL.txt"
 

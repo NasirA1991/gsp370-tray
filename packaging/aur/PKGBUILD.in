@@ -51,6 +51,11 @@ package() {
         install -Dm644 "$doc" "$pkgdir/usr/share/doc/$pkgname/docs/${doc##*/}"
     done
     install -Dm644 docs/tray-icon.png "$pkgdir/usr/share/doc/$pkgname/docs/tray-icon.png"
+    for shot in docs/screenshots/*.png; do
+        [[ -e "$shot" ]] || continue
+        install -Dm644 "$shot" \
+            "$pkgdir/usr/share/doc/$pkgname/docs/screenshots/${shot##*/}"
+    done
     install -d "$pkgdir/usr/share/plasma/plasmoids/org.nasir.gsp370battery"
     cp -a packaging/plasmoid/gsp370battery/. \
         "$pkgdir/usr/share/plasma/plasmoids/org.nasir.gsp370battery/"

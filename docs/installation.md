@@ -12,9 +12,9 @@ a prebuilt release archive, and a source build.
 The AUR package is the recommended installation on Arch Linux and derivatives:
 
 ```bash
-yay -S gsp370-tray
-# or
 paru -S gsp370-tray
+# or
+yay -S gsp370-tray
 ```
 
 The package installs:
@@ -23,8 +23,8 @@ The package installs:
 - the desktop entry and scalable icon
 - the udev rule at `/usr/lib/udev/rules.d/70-gsp370.rules`
 - the optional KDE Plasma widget
-- the README, user documentation, contributor guide, security policy,
-  changelog and licences under
+- the README, user documentation (including screenshots), contributor guide,
+  security policy, changelog and licences under
   `/usr/share/doc/gsp370-tray/` and `/usr/share/licenses/gsp370-tray/`
 
 The package's install hook reloads udev and re-adds the dongle's tty node. If
@@ -41,6 +41,7 @@ Download `gsp370-tray-<version>-x86_64.tar.gz` and `SHA256SUMS` from the
 [latest release](https://github.com/NasirA1991/gsp370-tray/releases/latest).
 
 ```bash
+sha256sum -c --ignore-missing SHA256SUMS
 tar -xzf gsp370-tray-<version>-x86_64.tar.gz
 cd gsp370-tray-<version>
 less INSTALL.txt
@@ -48,10 +49,10 @@ less INSTALL.txt
 
 The archive is a manual-install bundle. It contains the binary, desktop entry,
 icon, udev rule, Plasma widget, README, contributor guide, security policy,
-user documentation, changelog and licences. Follow `INSTALL.txt` for the exact
-commands; they install into `/usr/local` by default. The documentation and
-licences remain in the unpacked archive; the manual commands do not copy them
-into `/usr/local/share`.
+user documentation (including screenshots), changelog and licences. Follow
+`INSTALL.txt` for the exact commands; they install into `/usr/local` by
+default. The documentation and licences remain in the unpacked archive; the
+manual commands do not copy them into `/usr/local/share`.
 
 The prebuilt binary targets x86_64 Linux and needs glibc and a running D-Bus
 session. Low-battery notifications additionally need `notify-send` from

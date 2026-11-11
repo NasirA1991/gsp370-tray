@@ -9,46 +9,76 @@ It does not need Qt, GTK, a web view, or an audio server.
 
 [![AUR version](https://img.shields.io/aur/version/gsp370-tray?label=AUR)](https://aur.archlinux.org/packages/gsp370-tray)
 
-![Battery percentage rendered for dark and light panels](docs/tray-icon.png)
+## Screenshots
+
+![Tray menu showing battery percentage, device path, sidetone, low-battery alerts and start-at-login](docs/screenshots/tray-menu.png)
+
+*Battery status, sidetone, alerts and startup controls in the tray menu. The
+menu header repeats the battery and device information from the tooltip, which
+is dismissed when the menu opens.*
+
+![KDE Plasma 6 panel widget showing 80% battery next to the clock](docs/screenshots/plasma-widget.png)
+
+*The optional KDE Plasma 6 panel widget.*
 
 ## Features
 
+### Battery monitoring
+
 - Battery percentage in the tray icon and tooltip
-- Transparent icon with text that adapts to light and dark panels
+- Transparent icon whose text adapts to light and dark panels
 - Low-battery notifications at 20 %, 10 % and 5 %
-- Sidetone control from the tray menu, or from the CLI
 - Headset on/off detection and automatic reconnection
+
+### Sidetone control
+
+- Ten-percent steps from the tray menu
+- Scriptable `--set-sidetone` for a specific percentage
+- The menu remembers the last menu-selected value; see the read-back
+  limitation below
+
+### Desktop integration
+
+- StatusNotifierItem tray (tested on KDE Plasma 6)
 - Optional KDE Plasma 6 panel widget that renders the percentage as native
   panel text
 - Start-at-login toggle
-- Scriptable CLI: `--battery`, `--probe`, `--status`, `--set-sidetone`
-- Small native binary with no audio processing
 
-**Not included:** equalizer/surround effects and firmware updates. The EQ in
-the Windows suite is host-side audio processing, not a GSP 370 setting, and
-firmware flashing is deliberately unsupported.
+### Automation and lightweight operation
+
+- Scriptable CLI: `--battery`, `--probe`, `--status`, `--set-sidetone`
+- Machine-readable status for scripts and the Plasma widget
+- Small native Rust binary; no Qt, GTK, web view, audio processing, separate
+  daemon or network service
 
 ## Requirements
 
-- Linux with a StatusNotifierItem tray host. The app is developed and tested
-  on KDE Plasma 6 with CachyOS; other compliant tray hosts may work but are not
-  tested.
+**Required**
+
+- Linux with a StatusNotifierItem-compatible tray host. The app is developed
+  and tested on KDE Plasma 6 with CachyOS; other compliant hosts may work but
+  are not tested.
 - A Sennheiser/EPOS GSP 370 headset and its USB dongle (`1395:009a`). Other
-  headsets are not supported.
-- Read access to the dongle's serial port. The packaged udev rule grants this
-  to the active seat; systems without logind can use the `uucp` group instead.
-- `notify-send` (usually from `libnotify`) for low-battery notifications.
-- KDE Plasma 6 and `plasma-workspace` only if you want the optional panel
-  widget.
+  headset models are not supported.
+- Read/write access to the dongle's CDC-ACM serial interface. The packaged
+  udev rule grants this to the active seat; systems without logind can use the
+  `uucp` group instead.
+- A running D-Bus session for StatusNotifierItem.
+
+**Optional**
+
+- `notify-send` from `libnotify` for low-battery notifications. The app works
+  without it; only the notifications are skipped.
+- KDE Plasma 6 and `plasma-workspace` for the optional panel widget.
 
 ## Install
 
 ### Arch Linux / CachyOS (AUR)
 
 ```bash
-yay -S gsp370-tray
-# or
 paru -S gsp370-tray
+# or
+yay -S gsp370-tray
 ```
 
 The package installs the tray app, udev rule, desktop entry and Plasma widget.
@@ -59,10 +89,20 @@ uninstallation.
 
 ### Prebuilt release
 
-Download `gsp370-tray-<version>-x86_64.tar.gz` from
-[GitHub Releases](https://github.com/NasirA1991/gsp370-tray/releases), unpack
-it, and follow the included `INSTALL.txt`. The archive contains the binary,
-desktop file, icon, udev rule, Plasma widget, documentation and licences.
+Download the latest archive and `SHA256SUMS` from
+[GitHub Releases](https://github.com/NasirA1991/gsp370-tray/releases), verify
+the archive, unpack it, and follow the included `INSTALL.txt`:
+
+```bash
+VERSION=2.2.2  # replace with the latest release
+curl -fLO "https://github.com/NasirA1991/gsp370-tray/releases/download/v$VERSION/gsp370-tray-$VERSION-x86_64.tar.gz"
+curl -fLO "https://github.com/NasirA1991/gsp370-tray/releases/download/v$VERSION/SHA256SUMS"
+sha256sum -c --ignore-missing SHA256SUMS
+tar -xzf "gsp370-tray-$VERSION-x86_64.tar.gz"
+```
+
+The archive contains the binary, desktop file, icon, udev rule, Plasma widget,
+documentation and licences. The prebuilt binary is for x86_64 Linux.
 
 ### Build from source
 
@@ -72,14 +112,15 @@ needed for the optional helper targets and pseudo-terminal tests.
 ```bash
 git clone https://github.com/NasirA1991/gsp370-tray.git
 cd gsp370-tray
-cargo build --release --locked --manifest-path rust/Cargo.toml
 ./scripts/install.sh
 ```
 
-`scripts/install.sh` builds as your user, then asks for sudo to install under
-`/usr/local`. It also installs the desktop files, Plasma widget and udev rule.
-Use `PREFIX=/usr ./scripts/install.sh` to install somewhere else, or
-`sudo ./scripts/install.sh --system` when you have already built as a user.
+`scripts/install.sh` builds with Cargo as your user, then asks for sudo to
+install under `/usr/local`. It also installs the desktop files, Plasma widget
+and udev rule. Use `PREFIX=/usr ./scripts/install.sh` to install somewhere
+else. The normal installer should not be started with `sudo`;
+`sudo ./scripts/install.sh --system` is only for installing a binary you have
+already built.
 
 For the full source-build and manual-install instructions, see
 [Installation](docs/installation.md).
@@ -112,9 +153,12 @@ and only opens the serial port when the cache is missing or stale. See the
 [CLI and configuration reference](docs/usage.md#command-line-interface) for
 output fields and exit codes.
 
-Sidetone has no hardware read-back. The menu shows the last value set from the
-menu; resetting the headset or changing sidetone from another host can make
-that value stale. Sidetone is audible only while the microphone is in use.
+Sidetone has no hardware read-back: the headset cannot report its actual
+level. The tray menu therefore shows only the last value selected from that
+menu. `gsp370-tray --set-sidetone 30` changes the headset, but it does **not**
+update the menu's saved value. Resetting the headset or changing sidetone from
+another host can make the displayed value stale. Sidetone is audible only
+while the microphone is in use.
 
 ### KDE Plasma widget
 
@@ -124,6 +168,18 @@ once a minute, hides while the headset is off, and shows `!` when it cannot
 reach the dongle.
 
 See [Usage](docs/usage.md#kde-plasma-widget) for details.
+
+## How it works
+
+The tray runs as a single process: a StatusNotifierItem endpoint and one serial
+worker that talks to the dongle. It does not need a separate daemon, a network
+service, an audio server, Qt or GTK, or a custom kernel module; it uses the
+standard CDC-ACM driver.
+
+The optional Plasma widget calls `gsp370-tray --status`, which reads a
+short-lived runtime cache written by the tray instead of opening the serial
+port concurrently. See [Architecture](docs/architecture.md) for the modules
+and polling details.
 
 ## Limitations
 
@@ -135,54 +191,38 @@ See [Usage](docs/usage.md#kde-plasma-widget) for details.
   relevant** system-tray setting. Other tray hosts may keep the icon visible.
 - Sidetone cannot be read back from the headset. The tray stores only the value
   saved from its menu and cannot verify the headset's actual level.
-- The app does not expose a charging flag, firmware version, equalizer,
+- The app does not expose charging state, firmware version, equalizer,
   surround processing, microphone processing or firmware updates.
+- The Windows suite's equalizer is host-side audio processing, not a GSP 370
+  setting; this app does not replace the full Windows audio suite.
 - The prebuilt release archive is x86_64 only. The AUR package declares both
   x86_64 and aarch64, but only x86_64 release artifacts are built; source builds
   are not tied to x86_64.
 
 ## Troubleshooting
 
-### Permission denied on `/dev/ttyACM*`
-
-Install the udev rule and replug the dongle:
-
-```bash
-# AUR install:
-sudo install -Dm644 \
-  /usr/lib/udev/rules.d/70-gsp370.rules \
-  /etc/udev/rules.d/70-gsp370.rules
-# Source checkout:
-sudo install -Dm644 \
-  packaging/70-gsp370.rules \
-  /etc/udev/rules.d/70-gsp370.rules
-
-sudo udevadm control --reload-rules
-sudo udevadm trigger --action=add /sys/class/tty/ttyACM0
-```
-
-If your system does not apply logind seat ACLs, add your user to `uucp` and log
-out/in. See [Troubleshooting](docs/troubleshooting.md#permission-denied) for
-the full procedure.
-
-### Dongle not found or headset off
+Start with the non-interactive checks:
 
 ```bash
 lsusb -d 1395:009a
 ls -l /dev/ttyACM*
 gsp370-tray --probe
+gsp370-tray --status
 ```
 
-The headset must be powered on and in range. A dongle that reports the headset
-as off is working correctly; it simply cannot reach the headset.
+`--probe` reports the serial device, link state and battery. `--status`
+distinguishes `off` (dongle working, headset not reachable) from `no-dongle`,
+`permission`, `error` and `unknown`.
 
-### No tray icon
+If `--status` reports `permission`, install the udev rule and replug the
+dongle. The AUR and source commands, the `uucp` fallback and full diagnostic
+steps are in [Troubleshooting](docs/troubleshooting.md#permission-denied) and
+[Installation](docs/installation.md#dongle-permissions). Do not run the tray
+itself as root.
 
-Confirm that your desktop's system tray is running and that the app is not in
-the tray's overflow menu. The app uses StatusNotifierItem, so a desktop that
-does not implement it cannot display the icon.
-
-More fixes are in [Troubleshooting](docs/troubleshooting.md).
+If the tray icon is missing, confirm that a StatusNotifierItem host is running
+and look in the system tray's overflow menu. A desktop without SNI support
+cannot display the icon.
 
 ## Documentation
 

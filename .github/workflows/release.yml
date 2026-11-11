@@ -77,6 +77,8 @@ jobs:
           cp README.md CONTRIBUTING.md SECURITY.md CHANGELOG.md LICENSE \
              rust/assets/NotoSans-OFL.txt "$BUNDLE/"
           cp docs/*.md docs/tray-icon.png "$BUNDLE/docs/"
+          mkdir -p "$BUNDLE/docs/screenshots"
+          cp docs/screenshots/*.png "$BUNDLE/docs/screenshots/"
           cat > "$BUNDLE/INSTALL.txt" <<EOF
           GSP 370 Tray $VERSION - manual install (x86_64)
 
