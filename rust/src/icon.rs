@@ -293,11 +293,36 @@ fn kde_window_background() -> Option<[u8; 3]> {
     None
 }
 
+/// Query the desktop color scheme through the Freedesktop portal.
+///
+/// `org.freedesktop.appearance.color-scheme` is the cross-desktop setting:
+/// 1 means dark, 2 means light, and 0 means no preference.  The portal is the
+/// primary source because it also works on GNOME and other non-KDE desktops.
+fn portal_color_scheme() -> Option<bool> {
+    let connection = zbus::blocking::Connection::session().ok()?;
+    let proxy = zbus::blocking::Proxy::new(
+        &connection,
+        "org.freedesktop.portal.Desktop",
+        "/org/freedesktop/portal/desktop",
+        "org.freedesktop.portal.Settings",
+    )
+    .ok()?;
+    let value: zbus::zvariant::OwnedValue = proxy
+        .call("ReadOne", &("org.freedesktop.appearance", "color-scheme"))
+        .ok()?;
+    match u32::try_from(value).ok()? {
+        1 => Some(true),
+        2 => Some(false),
+        _ => None,
+    }
+}
+
 /// Pick black-ish or white-ish foreground text for the current panel theme.
 ///
-/// The tray's pixmap is not recoloured by Plasma, so we read KDE's window
-/// background colour and choose a contrasting text colour.  An environment
-/// override is available for tests and unusual themes.
+/// The tray's pixmap is not recoloured by the compositor, so query the
+/// Freedesktop portal first, then fall back to KDE's window background colour
+/// and GTK_THEME.  An environment override is available for tests and unusual
+/// themes.
 pub fn theme_text_color() -> [u8; 3] {
     if let Ok(value) = env::var("GSP370_TEXT_COLOR") {
         let channels: Vec<u8> = value
@@ -307,6 +332,10 @@ pub fn theme_text_color() -> [u8; 3] {
         if channels.len() >= 3 {
             return [channels[0], channels[1], channels[2]];
         }
+    }
+
+    if let Some(dark) = portal_color_scheme() {
+        return if dark { [245, 247, 250] } else { [28, 30, 34] };
     }
 
     if let Some([r, g, b]) = kde_window_background() {

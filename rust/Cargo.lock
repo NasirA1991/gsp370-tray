@@ -371,11 +371,12 @@ dependencies = [
 
 [[package]]
 name = "gsp370-tray"
-version = "2.2.1"
+version = "2.2.2"
 dependencies = [
  "ab_glyph",
  "ksni",
  "libc",
+ "zbus",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 [package]
 name = "gsp370-tray"
-version = "2.2.1"
+version = "2.2.2"
 edition = "2021"
 rust-version = "1.89"
 license = "MIT"
@@ -10,6 +10,7 @@ description = "Minimal StatusNotifierItem tray for the Sennheiser/EPOS GSP 370"
 ksni = { version = "0.3.7", default-features = false, features = ["blocking", "async-io"] }
 libc = "0.2"
 ab_glyph = "0.2"
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
 
 [profile.release]
 opt-level = "z"

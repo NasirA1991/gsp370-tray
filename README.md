@@ -65,6 +65,10 @@ cd gsp370-tray
 cargo build --release --locked --manifest-path rust/Cargo.toml
 python3 tests/e2e_pty.py ./rust/target/release/gsp370-tray
 
+# or the same common tasks through make:
+# make build
+# make check
+
 sudo ./scripts/install.sh
 ```
 
@@ -94,11 +98,13 @@ gsp370-tray --device /dev/ttyACM1 --battery
 ```
 
 `--device` also works when starting the tray in the normal no-action mode:
-`gsp370-tray --device /dev/ttyACM1`.
+`gsp370-tray --device /dev/ttyACM1`.  The path must resolve under `/dev`
+(symlinks such as `/dev/serial/by-id/...` are fine).
 
 The sidetone level is not readable from the headset, so the menu shows the
-last value set by this app.  Sidetone is only audible while the microphone is
-in use.
+last value set by this app.  Resetting the headset or changing sidetone from
+another host does not update that stored value, so it can become stale.
+Sidetone is only audible while the microphone is in use.
 
 ### Environment
 

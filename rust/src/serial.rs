@@ -78,6 +78,28 @@ fn find_port() -> Option<String> {
         .map(|path| path.to_string_lossy().into_owned())
 }
 
+/// Resolve an explicit device path and keep it inside `/dev`.
+///
+/// Autodetection already returns a `/dev/ttyACM*` path, but `--device` and
+/// `GSP370_TTY` are user input.  Canonicalising first catches typos and makes
+/// sure a symlink in `/dev/serial/by-id` still points at a real device node
+/// under `/dev`, without allowing a path outside the device tree.
+fn validate_device_path(path: &str) -> Result<PathBuf, Error> {
+    let canonical = fs::canonicalize(path).map_err(|error| {
+        Error::new(
+            ErrorCode::OpenFailed,
+            format!("Cannot resolve device path {path}: {error}"),
+        )
+    })?;
+    if !canonical.starts_with("/dev/") {
+        return Err(Error::new(
+            ErrorCode::OpenFailed,
+            format!("Refusing {path}: device path must resolve under /dev"),
+        ));
+    }
+    Ok(canonical)
+}
+
 fn open_path(path: &str) -> Result<Device, Error> {
     let c_path =
         CString::new(path).map_err(|_| Error::new(ErrorCode::OpenFailed, "invalid path"))?;
@@ -156,7 +178,8 @@ impl Device {
                     "GSP 370 dongle not found (USB 1395:009a). Is it plugged in?",
                 )
             })?;
-        open_path(&path)
+        let canonical = validate_device_path(&path)?;
+        open_path(&canonical.to_string_lossy())
     }
 
     pub fn path(&self) -> &str {
@@ -331,5 +354,16 @@ impl Device {
         )?;
         self.command(OP_SIDETONE_SET, &[level])?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn confines_explicit_devices_to_dev() {
+        assert!(validate_device_path("/dev/null").is_ok());
+        assert!(validate_device_path("/etc/passwd").is_err());
     }
 }

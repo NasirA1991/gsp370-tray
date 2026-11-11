@@ -4,6 +4,14 @@ pub const VENDOR_ID: u16 = 0x1395;
 pub const PRODUCT_ID: u16 = 0x009A;
 pub const BAUD_RATE: u32 = 921_600;
 
+/// Host-to-device report header and payload marker.
+pub const HOST_REPORT_ID: u8 = 0x01;
+pub const COMMAND_MARKER: u8 = 0xFC;
+
+/// Device-to-host report header.
+pub const DEVICE_REPORT_ID: u8 = 0x04;
+pub const DEVICE_REPORT_LENGTH: u8 = 0x0E;
+
 pub const OP_BATTERY: u8 = 0x9C;
 pub const OP_SIDETONE_ON: u8 = 0xA0;
 pub const OP_SIDETONE_OFF: u8 = 0xA1;
@@ -24,7 +32,7 @@ pub struct Reply {
 pub fn make_command(opcode: u8, params: &[u8]) -> Vec<u8> {
     assert!(params.len() <= u8::MAX as usize);
     let mut packet = Vec::with_capacity(4 + params.len());
-    packet.extend_from_slice(&[0x01, opcode, 0xFC, params.len() as u8]);
+    packet.extend_from_slice(&[HOST_REPORT_ID, opcode, COMMAND_MARKER, params.len() as u8]);
     packet.extend_from_slice(params);
     packet
 }
@@ -36,15 +44,15 @@ pub fn make_command(opcode: u8, params: &[u8]) -> Vec<u8> {
 pub fn parse_reply(received: &[u8], opcode: u8) -> Option<Reply> {
     let mut i = 0;
     while i + 6 < received.len() {
-        if received[i] != 0x04 || received[i + 1] != 0x0E {
+        if received[i] != DEVICE_REPORT_ID || received[i + 1] != DEVICE_REPORT_LENGTH {
             i += 1;
             continue;
         }
         let payload_len = received[i + 2] as usize;
         if payload_len < 4
-            || received[i + 3] != 0x01
+            || received[i + 3] != HOST_REPORT_ID
             || received[i + 4] != opcode
-            || received[i + 5] != 0xFC
+            || received[i + 5] != COMMAND_MARKER
         {
             i += 1;
             continue;

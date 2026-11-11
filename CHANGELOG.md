@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.2.2 — 2026-11-11
+
+- Prefer the Freedesktop `org.freedesktop.appearance.color-scheme` portal
+  setting for icon text contrast, with the existing KDE and GTK fallbacks.
+- Resolve `--device`/`GSP370_TTY` before opening it and refuse paths outside
+  `/dev`, while still allowing `/dev/serial/by-id` symlinks.
+- Named the protocol framing bytes instead of repeating magic numbers.
+- Added a RustSec `cargo audit` CI job and documented the sidetone read-back
+  limitation more explicitly.
+- Added a small `Makefile` for the common build, test and e2e commands.
+
 ## 2.2.1 — 2026-11-08
 
 - Corrected the declared MSRV to Rust 1.89 (the locked zbus/uuid versions
