@@ -49,9 +49,16 @@ install_system() {
     cp -a "$ROOT/packaging/plasmoid/gsp370battery/." \
         "$PREFIX/share/plasma/plasmoids/org.nasir.gsp370battery/"
     install -Dm644 "$ROOT/README.md" "$PREFIX/share/doc/gsp370-tray/README.md"
+    install -Dm644 "$ROOT/CONTRIBUTING.md" "$PREFIX/share/doc/gsp370-tray/CONTRIBUTING.md"
+    install -Dm644 "$ROOT/SECURITY.md" "$PREFIX/share/doc/gsp370-tray/SECURITY.md"
+    install -Dm644 "$ROOT/CHANGELOG.md" "$PREFIX/share/doc/gsp370-tray/CHANGELOG.md"
     install -Dm644 "$ROOT/LICENSE" "$PREFIX/share/doc/gsp370-tray/LICENSE"
-    install -Dm644 "$ROOT/docs/protocol.md" "$PREFIX/share/doc/gsp370-tray/docs/protocol.md"
+    for doc in "$ROOT"/docs/*.md; do
+        install -Dm644 "$doc" "$PREFIX/share/doc/gsp370-tray/docs/$(basename "$doc")"
+    done
     install -Dm644 "$ROOT/docs/tray-icon.png" "$PREFIX/share/doc/gsp370-tray/docs/tray-icon.png"
+    install -Dm644 "$ROOT/rust/assets/NotoSans-OFL.txt" \
+        "$PREFIX/share/licenses/gsp370-tray/NotoSans-OFL.txt"
 
     if [[ -d /etc/udev/rules.d ]]; then
         install -Dm644 "$ROOT/packaging/70-gsp370.rules" "$RULE"

@@ -1,38 +1,45 @@
 # GSP 370 Tray
 
-A small Linux tray app for the **Sennheiser/EPOS GSP 370** wireless headset.
+A small Linux tray application for the **Sennheiser/EPOS GSP 370** wireless
+headset. It shows the headset battery percentage, lets you set sidetone from
+the tray menu, and warns when the battery is low.
 
-It shows the headset battery percentage in the system tray, lets you set
-sidetone from the tray menu, and warns when the battery is low.  No Qt, GTK or
-audio server is required.
+The app talks to the GSP 370 dongle directly over its CDC-ACM serial interface.
+It does not need Qt, GTK, a web view, or an audio server.
 
-[![AUR](https://img.shields.io/aur/version/gsp370-tray?label=AUR)](https://aur.archlinux.org/packages/gsp370-tray)
+[![AUR version](https://img.shields.io/aur/version/gsp370-tray?label=AUR)](https://aur.archlinux.org/packages/gsp370-tray)
 
-![Battery percentage on dark and light panels](docs/tray-icon.png)
+![Battery percentage rendered for dark and light panels](docs/tray-icon.png)
 
 ## Features
 
-- Battery percentage in the tray and tooltip
-- Transparent icon with light/dark adaptive text
-- Low-battery alerts at 20 %, 10 % and 5 %
-- Sidetone control from the tray menu
-- Headset on/off detection and automatic reconnect
-- Hides from the tray while the headset is off (KDE “only show when relevant”)
+- Battery percentage in the tray icon and tooltip
+- Transparent icon with text that adapts to light and dark panels
+- Low-battery notifications at 20 %, 10 % and 5 %
+- Sidetone control from the tray menu, or from the CLI
+- Headset on/off detection and automatic reconnection
+- Optional KDE Plasma 6 panel widget that renders the percentage as native
+  panel text
 - Start-at-login toggle
-- CLI for scripting: `--battery`, `--probe`, `--status`, `--set-sidetone`
-- Small native binary; no web view or audio processing
+- Scriptable CLI: `--battery`, `--probe`, `--status`, `--set-sidetone`
+- Small native binary with no audio processing
 
-**Not included:** equalizer/surround effects and firmware updates.  The EQ in
+**Not included:** equalizer/surround effects and firmware updates. The EQ in
 the Windows suite is host-side audio processing, not a GSP 370 setting, and
 firmware flashing is deliberately unsupported.
 
-### KDE Plasma panel widget
+## Requirements
 
-The package also includes an optional KDE Plasma 6 widget that shows the battery as
-normal panel text (`84%`) in the system font, rather than as a 22 px tray icon.
-
-Right-click the panel → **Enter Edit Mode** → **Add Widgets** → **GSP 370
-Battery**.  The widget hides when the headset is off.
+- Linux with a StatusNotifierItem tray host. The app is developed and tested
+  on KDE Plasma 6 with CachyOS; other compliant tray hosts may work but are not
+  tested.
+- A Sennheiser/EPOS GSP 370 headset and its USB dongle (`1395:009a`). Other
+  headsets are not supported.
+- Read access to the dongle's serial port. The packaged udev rule grants this
+  to the active seat; systems without logind can use the `uucp` group instead.
+- `notify-send` (usually from `libnotify`) for low-battery notifications.
+- KDE Plasma 6 and `plasma-workspace` only if you want the optional panel
+  widget.
 
 ## Install
 
@@ -44,151 +51,166 @@ yay -S gsp370-tray
 paru -S gsp370-tray
 ```
 
-The package installs the udev rule for the dongle.  Replug the dongle once if
-the tray reports a permission error.
+The package installs the tray app, udev rule, desktop entry and Plasma widget.
+Replug the dongle once if the tray reports a permission error after install.
 
-### Release binary
+See [Installation](docs/installation.md) for package contents, updates and
+uninstallation.
 
-Download the latest `gsp370-tray-*-x86_64.tar.gz` from
-[GitHub Releases](https://github.com/NasirA1991/gsp370-tray/releases).  The
-archive contains the binary, desktop file, icon, udev rule, the Plasma widget
-and a short `INSTALL.txt`.
+### Prebuilt release
+
+Download `gsp370-tray-<version>-x86_64.tar.gz` from
+[GitHub Releases](https://github.com/NasirA1991/gsp370-tray/releases), unpack
+it, and follow the included `INSTALL.txt`. The archive contains the binary,
+desktop file, icon, udev rule, Plasma widget, documentation and licences.
 
 ### Build from source
 
-Requirements: Rust 1.89+ and a C linker.
+Requirements: Rust 1.89 or newer and a C linker. `make` and Python 3 are only
+needed for the optional helper targets and pseudo-terminal tests.
 
 ```bash
 git clone https://github.com/NasirA1991/gsp370-tray.git
 cd gsp370-tray
-
 cargo build --release --locked --manifest-path rust/Cargo.toml
-python3 tests/e2e_pty.py ./rust/target/release/gsp370-tray
-
-# or the same common tasks through make:
-# make build
-# make check
-
-sudo ./scripts/install.sh
+./scripts/install.sh
 ```
 
-`scripts/install.sh` installs the binary under `/usr/local`, the desktop/icon
-files, the Plasma widget, and the udev rule at
-`/etc/udev/rules.d/70-gsp370.rules`.
+`scripts/install.sh` builds as your user, then asks for sudo to install under
+`/usr/local`. It also installs the desktop files, Plasma widget and udev rule.
+Use `PREFIX=/usr ./scripts/install.sh` to install somewhere else, or
+`sudo ./scripts/install.sh --system` when you have already built as a user.
+
+For the full source-build and manual-install instructions, see
+[Installation](docs/installation.md).
 
 ## Usage
 
-Run:
+Start the tray:
 
 ```bash
 gsp370-tray
 ```
 
-Click the tray icon for the menu.  Settings are stored in
-`~/.config/gsp370-tray/config`.
+Click the tray icon for the menu. It shows the current state, sidetone options
+in 10 % steps, refresh, low-battery alerts, start-at-login and quit. Settings
+are stored in `$XDG_CONFIG_HOME/gsp370-tray/config` (normally
+`~/.config/gsp370-tray/config`).
 
-CLI:
+Command-line examples:
 
 ```bash
-gsp370-tray --battery          # prints percentage, or "off" and exits 2
-gsp370-tray --probe            # device path, link state and battery
-gsp370-tray --status           # cached/probed state for the Plasma widget
+gsp370-tray --battery          # print the percentage
+gsp370-tray --probe            # show device, link state and battery
+gsp370-tray --status           # cached status, with a probe fallback
 gsp370-tray --set-sidetone 30  # 0 = off, 100 = maximum
-gsp370-tray --device /dev/ttyACM1 --battery
+gsp370-tray --device /dev/serial/by-id/usb-... --battery
 ```
 
-`--device` also works when starting the tray in the normal no-action mode:
-`gsp370-tray --device /dev/ttyACM1`.  The path must resolve under `/dev`
-(symlinks such as `/dev/serial/by-id/...` are fine).
+For scripts, prefer `--status`: it reads the tray's short-lived status cache
+and only opens the serial port when the cache is missing or stale. See the
+[CLI and configuration reference](docs/usage.md#command-line-interface) for
+output fields and exit codes.
 
-The sidetone level is not readable from the headset, so the menu shows the
-last value set by this app.  Resetting the headset or changing sidetone from
-another host does not update that stored value, so it can become stale.
-Sidetone is only audible while the microphone is in use.
+Sidetone has no hardware read-back. The menu shows the last value set from the
+menu; resetting the headset or changing sidetone from another host can make
+that value stale. Sidetone is audible only while the microphone is in use.
 
-### Environment
+### KDE Plasma widget
 
-- `GSP370_TTY=/dev/ttyACM1` — override the dongle device (useful for tests).
-- `GSP370_TEXT_COLOR=R,G,B` — override the icon text colour, for unusual panel themes.
+The package includes an optional Plasma 6 widget. Right-click the panel, choose
+**Enter Edit Mode** → **Add Widgets**, and add **GSP 370 Battery**. It refreshes
+once a minute, hides while the headset is off, and shows `!` when it cannot
+reach the dongle.
 
-The Plasma widget calls `gsp370-tray --status` every minute. That command
-reads the tray's status cache and only probes the serial port when the cache
-is missing or stale.
+See [Usage](docs/usage.md#kde-plasma-widget) for details.
+
+## Limitations
+
+- Only the GSP 370 with USB ID `1395:009a` is supported. Other Sennheiser/EPOS
+  models have not been tested and are not claimed to work.
+- The tray uses StatusNotifierItem. Desktops without an SNI host will not show
+  the icon.
+- Hiding the icon while the headset is off depends on KDE's **Only show when
+  relevant** system-tray setting. Other tray hosts may keep the icon visible.
+- Sidetone cannot be read back from the headset. The tray stores only the value
+  saved from its menu and cannot verify the headset's actual level.
+- The app does not expose a charging flag, firmware version, equalizer,
+  surround processing, microphone processing or firmware updates.
+- The prebuilt release archive is x86_64 only. The AUR package declares both
+  x86_64 and aarch64, but only x86_64 release artifacts are built; source builds
+  are not tied to x86_64.
 
 ## Troubleshooting
 
-### Permission denied on `/dev/ttyACMn`
+### Permission denied on `/dev/ttyACM*`
+
+Install the udev rule and replug the dongle:
 
 ```bash
-sudo install -Dm644 packaging/70-gsp370.rules /etc/udev/rules.d/70-gsp370.rules
+# AUR install:
+sudo install -Dm644 \
+  /usr/lib/udev/rules.d/70-gsp370.rules \
+  /etc/udev/rules.d/70-gsp370.rules
+# Source checkout:
+sudo install -Dm644 \
+  packaging/70-gsp370.rules \
+  /etc/udev/rules.d/70-gsp370.rules
+
 sudo udevadm control --reload-rules
-sudo udevadm trigger --action=add /sys/class/tty/ttyACMn  # use your dongle node
+sudo udevadm trigger --action=add /sys/class/tty/ttyACM0
 ```
 
-Replace `ttyACMn` with the node shown by `ls /dev/ttyACM*`.  Then replug the
-dongle.  If your system does not apply logind seat ACLs, add your user to
-`uucp` and log out/in:
+If your system does not apply logind seat ACLs, add your user to `uucp` and log
+out/in. See [Troubleshooting](docs/troubleshooting.md#permission-denied) for
+the full procedure.
 
-```bash
-sudo usermod -aG uucp "$USER"
-```
-
-### Dongle not found / headset off
+### Dongle not found or headset off
 
 ```bash
 lsusb -d 1395:009a
 ls -l /dev/ttyACM*
-```
-
-The headset must be powered on and in range.  If the dongle is present but
-the tray says the headset is off, that is the dongle reporting that it cannot
-reach the headset.
-
-### No tray icon
-
-The app uses StatusNotifierItem.  Check that the desktop’s system tray is
-running and that the app is not in the tray’s overflow menu.
-
-## Bugs and requests
-
-Please open an issue:
-
-https://github.com/NasirA1991/gsp370-tray/issues
-
-Include the output of:
-
-```bash
 gsp370-tray --probe
 ```
 
-## Development
+The headset must be powered on and in range. A dongle that reports the headset
+as off is working correctly; it simply cannot reach the headset.
 
-```bash
-cargo test  --release --locked --manifest-path rust/Cargo.toml
-cargo build --release --locked --manifest-path rust/Cargo.toml
-python3 tests/e2e_pty.py ./rust/target/release/gsp370-tray
-```
+### No tray icon
 
-Protocol notes and reverse-engineering evidence are in
-[docs/protocol.md](docs/protocol.md).
+Confirm that your desktop's system tray is running and that the app is not in
+the tray's overflow menu. The app uses StatusNotifierItem, so a desktop that
+does not implement it cannot display the icon.
 
-## Releasing
+More fixes are in [Troubleshooting](docs/troubleshooting.md).
 
-Push a tag matching the version in `rust/Cargo.toml`:
+## Documentation
 
-```bash
-VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' rust/Cargo.toml | head -1)"
-git tag "v$VERSION"
-git push origin "v$VERSION"
-```
+| Document | Contents |
+|---|---|
+| [Installation](docs/installation.md) | AUR, release archive, source build, manual paths, permissions, uninstall |
+| [Usage and CLI](docs/usage.md) | Tray menu, CLI reference, configuration, environment variables, Plasma widget |
+| [Troubleshooting](docs/troubleshooting.md) | Permission, dongle, tray, widget, sidetone and notification problems |
+| [Architecture](docs/architecture.md) | Process model, modules, status cache and test strategy |
+| [Protocol notes](docs/protocol.md) | Reverse-engineered serial framing, commands and evidence |
+| [Contributing](CONTRIBUTING.md) | Development setup, tests, pull requests and releases |
+| [Security](SECURITY.md) | Supported versions and private vulnerability reporting |
+| [Changelog](CHANGELOG.md) | Release history |
 
-The `Release` workflow runs the tests, builds the source/binary/Arch
-artifacts, creates the GitHub release, and updates the AUR package.  It uses
-the `AUR_SSH_PRIVATE_KEY` repository secret.
+## Contributing and support
+
+Bug reports and feature requests are welcome in the
+[issue tracker](https://github.com/NasirA1991/gsp370-tray/issues). Include the
+output of `gsp370-tray --probe` and your installation method when reporting a
+device problem. Before opening a pull request, see
+[Contributing](CONTRIBUTING.md).
 
 ## License
 
-MIT.  The embedded Noto Sans Medium digit subset is licensed under the SIL
-Open Font License 1.1; see `rust/assets/NotoSans-OFL.txt`.
+The application is licensed under the MIT License. The embedded Noto Sans
+Medium digit subset is licensed under the SIL Open Font License 1.1; see
+[`rust/assets/NotoSans-OFL.txt`](https://github.com/NasirA1991/gsp370-tray/blob/main/rust/assets/NotoSans-OFL.txt).
+Packaged installs place it under `/usr/share/licenses/gsp370-tray/`; source
+installs use `<prefix>/share/licenses/gsp370-tray/`.
 
-Not affiliated with or endorsed by EPOS, Sennheiser or Demant.
+GSP 370 Tray is not affiliated with or endorsed by EPOS, Sennheiser or Demant.

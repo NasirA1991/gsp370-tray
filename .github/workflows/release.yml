@@ -74,8 +74,9 @@ jobs:
           cp packaging/gsp370-tray.desktop packaging/gsp370-tray.svg \
              packaging/70-gsp370.rules "$BUNDLE/"
           cp -a packaging/plasmoid/gsp370battery "$BUNDLE/"
-          cp README.md LICENSE rust/assets/NotoSans-OFL.txt "$BUNDLE/"
-          cp docs/protocol.md docs/tray-icon.png "$BUNDLE/docs/"
+          cp README.md CONTRIBUTING.md SECURITY.md CHANGELOG.md LICENSE \
+             rust/assets/NotoSans-OFL.txt "$BUNDLE/"
+          cp docs/*.md docs/tray-icon.png "$BUNDLE/docs/"
           cat > "$BUNDLE/INSTALL.txt" <<EOF
           GSP 370 Tray $VERSION - manual install (x86_64)
 
@@ -86,7 +87,7 @@ jobs:
             sudo install -d /usr/local/share/plasma/plasmoids/org.nasir.gsp370battery
             sudo cp -a gsp370battery/. /usr/local/share/plasma/plasmoids/org.nasir.gsp370battery/
             sudo udevadm control --reload-rules
-            sudo udevadm trigger --action=add /sys/class/tty/ttyACMn  # use your dongle node
+            sudo udevadm trigger --action=add /sys/class/tty/ttyACM0  # replace 0 if your dongle is elsewhere
 
           Run `gsp370-tray` and click the tray icon.  Replug the dongle once if the
           port permission is not picked up immediately.

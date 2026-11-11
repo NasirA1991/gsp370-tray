@@ -5,7 +5,7 @@ This does not need the real headset.  It exercises Device::open(), termios
 configuration, command writes, reply framing, events-before-reply, and the
 CLI's exit codes.  Run it after building:
 
-    python3 tests/e2e_pty.py ./build/gsp370-tray
+    python3 tests/e2e_pty.py ./rust/target/release/gsp370-tray
 """
 
 from __future__ import annotations

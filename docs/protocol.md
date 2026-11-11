@@ -112,8 +112,8 @@ level = 6 + (percent - 1) * 10 / 99        otherwise (integer arithmetic)
 
 So 10 % -> 6, 50 % -> 10, 100 % -> 16.  The headset does not report the
 current sidetone level; `0xA3` returned the same value after audible changes
-in prior captures.  The tray therefore shows the last value *set by this app*,
-not a read-back.
+in prior captures.  The tray therefore shows the last value *saved from the
+menu*, not a read-back.
 
 Sidetone is only audible while the microphone stream is open.  This is a
 firmware behaviour, not something the serial command can change.
@@ -169,9 +169,10 @@ This reconstruction combines:
    version had previously confirmed battery/sidetone as well, so the dongle
    replies are consistent with the published captures.
 
-The command set is consistent across the independent sources.  The
-hardware-verification result for the unit used during development is recorded
-in the project README.
+The command set is consistent across the independent sources.  The checks in
+item 6 are the hardware-verification record for the unit used during
+development; the project does not maintain a separate hardware-test table in
+the README.
 
 ## Unknowns / deliberately unprobed
 

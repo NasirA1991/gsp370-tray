@@ -16,6 +16,7 @@ rm -f \
 rm -rf \
     "$PREFIX/share/doc/gsp370-tray" \
     "$PREFIX/share/gsp370-tray" \
+    "$PREFIX/share/licenses/gsp370-tray" \
     "$PREFIX/share/plasma/plasmoids/org.nasir.gsp370battery"
 
 if command -v udevadm >/dev/null 2>&1; then

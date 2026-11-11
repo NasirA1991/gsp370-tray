@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Reorganized the documentation into a concise README plus dedicated
+  installation, usage, troubleshooting and architecture guides, with a
+  contributor guide and security policy.
+
 ## 2.2.2 — 2026-11-11
 
 - Prefer the Freedesktop `org.freedesktop.appearance.color-scheme` portal
