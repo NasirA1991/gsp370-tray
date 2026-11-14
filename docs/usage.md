@@ -21,6 +21,7 @@ Click the tray icon to open the menu. It contains:
 |---|---|
 | Status line | Current headset state and battery percentage. |
 | **Sidetone** | `Off` or 10–100 % in 10 % steps. Enabled only while the headset is connected. |
+| **Fix device permissions…** | Shown only when the serial node is denied. Installs the udev rule through `pkexec`, or explains the manual commands when the rule is already present or `pkexec` is unavailable. |
 | **Refresh now** | Forces an immediate status probe. |
 | **Low battery alerts** | Enables or disables the 20 %, 10 % and 5 % notifications. |
 | **Start at login** | Creates or removes an XDG autostart entry. |
