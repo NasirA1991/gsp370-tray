@@ -18,10 +18,23 @@ use std::path::{Path, PathBuf};
 use std::process::Command as ProcessCommand;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const APP_ID: &str = "gsp370-tray";
+const RULE_FILE_NAME: &str = "70-gsp370.rules";
+const RULE_TEXT: &str = include_str!("../../packaging/70-gsp370.rules");
+const RULE_PATHS: [&str; 3] = [
+    "/etc/udev/rules.d/70-gsp370.rules",
+    "/usr/lib/udev/rules.d/70-gsp370.rules",
+    "/usr/local/lib/udev/rules.d/70-gsp370.rules",
+];
+const PERMISSION_HELP: &str =
+    "Install the udev rule from the source tree or release bundle, then replug the dongle:\n\n\
+sudo install -Dm644 70-gsp370.rules /etc/udev/rules.d/70-gsp370.rules\n\
+sudo udevadm control --reload-rules\n\
+sudo udevadm trigger --subsystem-match=tty\n\n\
+See docs/installation.md#dongle-permissions for details.";
 
 #[derive(Clone, Debug)]
 struct Config {
@@ -154,6 +167,118 @@ fn notify(title: &str, body: &str) {
         .status();
 }
 
+fn rule_installed_in(paths: &[&str]) -> bool {
+    paths.iter().any(|path| Path::new(path).is_file())
+}
+
+fn rule_installed() -> bool {
+    rule_installed_in(&RULE_PATHS)
+}
+
+fn permission_item_visible(state: TrayState) -> bool {
+    state == TrayState::Permission
+}
+
+fn logind_available() -> bool {
+    Path::new("/run/systemd/seats").is_dir()
+}
+
+fn detect_serial_group() -> Option<&'static str> {
+    ["uucp", "dialout"].into_iter().find(|group| {
+        ProcessCommand::new("getent")
+            .arg("group")
+            .arg(group)
+            .status()
+            .is_ok_and(|status| status.success())
+    })
+}
+
+fn existing_rule_guidance_with(logind: bool, group: Option<&str>) -> String {
+    if logind {
+        return "Rule installed. Unplug and replug the dongle.".into();
+    }
+    let group = group.unwrap_or("dialout");
+    format!(
+        "The udev rule is installed, but this system has no logind seat ACL support. Add your user to the serial group:\n\nsudo usermod -aG {group} $USER\n\nThen log out and back in."
+    )
+}
+
+fn existing_rule_guidance() -> String {
+    existing_rule_guidance_with(logind_available(), detect_serial_group())
+}
+
+fn command_on_path(name: &str) -> bool {
+    env::var_os("PATH").is_some_and(|paths| {
+        env::split_paths(&paths).any(|directory| directory.join(name).is_file())
+    })
+}
+
+fn write_temp_rule() -> std::io::Result<PathBuf> {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let path = env::temp_dir().join(format!("gsp370-{}-{stamp}.rules", std::process::id()));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&path)?;
+    file.write_all(RULE_TEXT.as_bytes())?;
+    Ok(path)
+}
+
+fn fix_device_permissions() {
+    if !command_on_path("pkexec") {
+        notify("GSP 370 permissions", PERMISSION_HELP);
+        return;
+    }
+
+    let temp = match write_temp_rule() {
+        Ok(path) => path,
+        Err(error) => {
+            notify(
+                "GSP 370 permissions",
+                &format!("Could not prepare the udev rule: {error}\n\n{PERMISSION_HELP}"),
+            );
+            return;
+        }
+    };
+
+    let shell = format!(
+        "install -Dm644 \"$1\" /etc/udev/rules.d/{RULE_FILE_NAME} && \
+         udevadm control --reload-rules && \
+         udevadm trigger --subsystem-match=tty"
+    );
+    let status = ProcessCommand::new("pkexec")
+        .arg("sh")
+        .arg("-c")
+        .arg(shell)
+        .arg("sh")
+        .arg(&temp)
+        .status();
+    let _ = fs::remove_file(&temp);
+
+    match status {
+        Ok(status) if status.success() => {
+            if logind_available() {
+                notify(
+                    "GSP 370 permissions",
+                    "Rule installed. Unplug and replug the dongle.",
+                );
+            } else {
+                notify("GSP 370 permissions", &existing_rule_guidance());
+            }
+        }
+        _ => {
+            notify(
+                "GSP 370 permissions",
+                &format!("Permission prompt cancelled or failed.\n\n{PERMISSION_HELP}"),
+            );
+        }
+    }
+}
+
 #[derive(Debug)]
 enum Command {
     Refresh,
@@ -202,13 +327,39 @@ impl AppTray {
         }
     }
 
+    fn display_detail(&self) -> String {
+        if self.state == TrayState::Permission && rule_installed() {
+            // The serial error still carries the generic install hint.  Once
+            // the rule is present, the tooltip supplies the more specific
+            // "replug" guidance instead of repeating an install command.
+            return self
+                .detail
+                .split(". Install packaging/")
+                .next()
+                .unwrap_or(&self.detail)
+                .to_owned();
+        }
+        self.detail.clone()
+    }
+
     fn tooltip(&self) -> String {
         let mut lines = vec![self.status_label()];
         if self.state == TrayState::Connected {
             lines.push(format!("Sidetone: {}% (last set)", self.sidetone));
         }
-        if !self.detail.is_empty() {
-            lines.push(self.detail.clone());
+        if self.state == TrayState::Permission {
+            if rule_installed() {
+                lines.push("The udev rule is installed. Unplug and replug the dongle.".into());
+            } else {
+                lines.push(
+                    "Use \"Fix device permissions…\" in the menu, or install the udev rule (docs/installation.md#dongle-permissions)."
+                        .into(),
+                );
+            }
+        }
+        let detail = self.display_detail();
+        if !detail.is_empty() {
+            lines.push(detail);
         }
         lines.join("\n")
     }
@@ -273,11 +424,29 @@ impl ksni::Tray for AppTray {
             }
             .into(),
         );
-        if !self.detail.is_empty() {
+        let detail = self.display_detail();
+        if !detail.is_empty() {
             items.push(
                 StandardItem {
-                    label: self.detail.clone(),
+                    label: detail,
                     enabled: false,
+                    ..Default::default()
+                }
+                .into(),
+            );
+        }
+
+        if permission_item_visible(self.state) {
+            items.push(
+                StandardItem {
+                    label: "Fix device permissions…".into(),
+                    activate: Box::new(|_| {
+                        if rule_installed() {
+                            notify("GSP 370 permissions", &existing_rule_guidance());
+                        } else {
+                            thread::spawn(fix_device_permissions);
+                        }
+                    }),
                     ..Default::default()
                 }
                 .into(),
@@ -1003,6 +1172,49 @@ mod tests {
         assert_eq!(bits, 1);
         reset_low_notifications(23, Some(20), &mut bits);
         assert_eq!(bits, 0);
+    }
+
+    #[test]
+    fn permission_menu_is_only_visible_for_permission_state() {
+        assert!(permission_item_visible(TrayState::Permission));
+        for state in [
+            TrayState::Connected,
+            TrayState::Off,
+            TrayState::NoDongle,
+            TrayState::Error,
+            TrayState::Unknown,
+        ] {
+            assert!(!permission_item_visible(state), "{state:?}");
+        }
+    }
+
+    #[test]
+    fn no_logind_existing_rule_reports_serial_group_command() {
+        let message = existing_rule_guidance_with(false, Some("uucp"));
+        assert!(message.contains("serial group"));
+        assert!(message.contains("sudo usermod -aG uucp $USER"));
+        assert!(message.contains("log out and back in"));
+
+        let fallback = existing_rule_guidance_with(false, None);
+        assert!(fallback.contains("sudo usermod -aG dialout $USER"));
+        assert!(existing_rule_guidance_with(true, None).contains("Unplug and replug"));
+    }
+
+    #[test]
+    fn detects_an_installed_rule_path() {
+        let path = env::temp_dir().join(format!(
+            "gsp370-rule-test-{}-{}.rules",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        fs::write(&path, RULE_TEXT).unwrap();
+        let path_text = path.to_string_lossy().into_owned();
+        assert!(rule_installed_in(&[path_text.as_str()]));
+        let _ = fs::remove_file(&path);
+        assert!(!rule_installed_in(&[path_text.as_str()]));
     }
 
     #[test]

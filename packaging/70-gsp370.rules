@@ -4,6 +4,10 @@
 # interface (3) only carries consumer-control media keys and needs no rule.
 #
 # TAG+="uaccess" lets the currently logged-in seat user open the port without
-# adding them to a group.  GROUP="uucp" is a fallback for non-logind systems.
-# ModemManager must not probe this port: it is not a modem.
-ACTION=="add|change", SUBSYSTEM=="tty", ATTRS{idVendor}=="1395", ATTRS{idProduct}=="009a", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{ID_MM_CANDIDATE}="0", TAG+="uaccess", GROUP="uucp", MODE="0660"
+# joining a group.  The distro's default tty group is deliberately left alone:
+# Arch uses uucp, while Debian/Ubuntu/Fedora/openSUSE use dialout.  The
+# installer detects the available group for its non-logind guidance.
+#
+# ModemManager must not probe this port: it is not a modem.  Keep this file
+# below 77- so the ignore is set before ModemManager's own rules run.
+ACTION=="add|change", SUBSYSTEM=="tty", ATTRS{idVendor}=="1395", ATTRS{idProduct}=="009a", ENV{ID_MM_DEVICE_IGNORE}="1", ENV{ID_MM_CANDIDATE}="0", TAG+="uaccess"

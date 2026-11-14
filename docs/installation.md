@@ -44,15 +44,17 @@ Download `gsp370-tray-<version>-x86_64.tar.gz` and `SHA256SUMS` from the
 sha256sum -c --ignore-missing SHA256SUMS
 tar -xzf gsp370-tray-<version>-x86_64.tar.gz
 cd gsp370-tray-<version>
-less INSTALL.txt
+./install.sh
 ```
 
-The archive is a manual-install bundle. It contains the binary, desktop entry,
+The archive contains the binary, `install.sh`, `uninstall.sh`, desktop entry,
 icon, udev rule, Plasma widget, README, contributor guide, security policy,
-user documentation (including screenshots), changelog and licences. Follow
-`INSTALL.txt` for the exact commands; they install into `/usr/local` by
-default. The documentation and licences remain in the unpacked archive; the
-manual commands do not copy them into `/usr/local/share`.
+user documentation (including screenshots), changelog and licences. The
+installer installs into `/usr/local` by default, copies the documentation and
+writes an install manifest. `INSTALL.txt` is a short pointer to these steps.
+
+The published v2.2.2 archive predates this installer; use its manual
+`INSTALL.txt`. Archives produced from this revision contain both scripts.
 
 The prebuilt binary targets x86_64 Linux and needs glibc and a running D-Bus
 session. Low-battery notifications additionally need `notify-send` from
@@ -80,14 +82,15 @@ sudo pacman -S --needed base-devel rust git
 ```bash
 git clone https://github.com/NasirA1991/gsp370-tray.git
 cd gsp370-tray
-cargo build --release --locked --manifest-path rust/Cargo.toml
 ./scripts/install.sh
 ```
 
-The optional `make build` target runs the same command.
+The script builds the release binary itself. To compile only, run
+`make build` (or the equivalent Cargo command).
 
-`scripts/install.sh` builds as your user if needed, then re-runs itself through
-sudo to install the binary, desktop entry, icon, Plasma widget, documentation
+`scripts/install.sh` builds as your user, checks for Cargo/Rust 1.89+ and a C
+linker, then re-runs itself through sudo to install the binary, desktop entry,
+icon, Plasma widget (only when Plasma 6 is present), documentation, manifest
 and udev rule. It installs under `/usr/local` by default.
 
 Useful variants:
@@ -95,12 +98,15 @@ Useful variants:
 ```bash
 PREFIX=/usr ./scripts/install.sh              # install under /usr
 sudo ./scripts/install.sh --system            # install an already-built binary
+./scripts/install.sh --skip-deps              # bypass the dependency check
+./scripts/install.sh --force                  # allow an install next to the AUR package
 ./scripts/install.sh --help                   # show the script's usage
 ```
 
 Running the script with `sudo` from the start is unnecessary: the no-argument
 form deliberately builds as the invoking user and escalates only for the
-install step. `--system` is for an existing build and must run as root.
+install step. `--system` is for an existing build and must run as root. The
+installer refuses to run as root without `--system`.
 
 ### Source install paths
 
@@ -114,10 +120,17 @@ The source installer uses these paths by default:
 | Plasma widget | `/usr/local/share/plasma/plasmoids/org.nasir.gsp370battery/` |
 | documentation | `/usr/local/share/doc/gsp370-tray/` |
 | font licence | `/usr/local/share/licenses/gsp370-tray/` |
+| install manifest | `/usr/local/share/gsp370-tray/install-manifest.txt` |
 | udev rule | `/etc/udev/rules.d/70-gsp370.rules` |
 
 The AUR package uses the distribution paths under `/usr` and
 `/usr/lib/udev/rules.d`.
+
+For a source install under `/usr` or `/usr/local`, the rule is written to
+`/etc/udev/rules.d/70-gsp370.rules`. For any other `PREFIX`, it is written to
+`$PREFIX/lib/udev/rules.d/70-gsp370.rules`; udev does not read that path, so the
+installer warns and you should use **Fix device permissions…** or install the
+rule under `/etc` manually.
 
 ### Run the tests
 
@@ -137,13 +150,6 @@ cargo build --release --locked --manifest-path rust/Cargo.toml
 python3 tests/e2e_pty.py ./rust/target/release/gsp370-tray
 ```
 
-Or without `make`:
-
-```bash
-cargo test --locked --manifest-path rust/Cargo.toml
-python3 tests/e2e_pty.py ./rust/target/release/gsp370-tray
-```
-
 `make check` runs formatting, clippy, unit tests and the PTY suite. Note that
 `make fmt` writes formatting changes; CI uses `cargo fmt --check` instead. See
 [Contributing](../CONTRIBUTING.md) for the development workflow.
@@ -151,37 +157,48 @@ python3 tests/e2e_pty.py ./rust/target/release/gsp370-tray
 ## Dongle permissions
 
 The app opens the GSP 370 dongle's CDC-ACM serial node, normally
-`/dev/ttyACM0`, at 921600 baud. The supplied udev rule:
+`/dev/ttyACM0`, at 921600 baud. The single supplied rule matches only
+`SUBSYSTEM=="tty"` with USB IDs `1395:009a`:
 
 - tags the device with `uaccess`, so the active logind seat user can open it
   without joining a group;
-- sets group `uucp` and mode `0660` as a fallback for systems without logind;
-- tells ModemManager not to probe the port.
+- deliberately does not set `GROUP` or `MODE`, because the default tty group
+  differs between distributions;
+- sets `ID_MM_DEVICE_IGNORE` so ModemManager does not probe the port.
 
 The AUR package installs the rule automatically. A source install via
-`scripts/install.sh` also installs it. For a manual install from a source
-checkout, or to repair permissions:
+`scripts/install.sh` also installs it. The installer detects the
+distribution's tty group for non-logind guidance: Arch normally uses `uucp`;
+Debian, Ubuntu, Fedora and openSUSE normally use `dialout`.
+
+When the tray reports `permission`, **Fix device permissions…** installs the
+rule through one `pkexec` prompt. If `pkexec` is unavailable, the menu and
+notification show the manual commands below.
+
+For a manual install from a source checkout, or to repair permissions:
 
 ```bash
 # From a source checkout:
 sudo install -Dm644 packaging/70-gsp370.rules /etc/udev/rules.d/70-gsp370.rules
 sudo udevadm control --reload-rules
-sudo udevadm trigger --action=add /sys/class/tty/ttyACM0
+sudo udevadm trigger --subsystem-match=tty
 ```
 
-Replace `ttyACM0` with the node for the GSP 370 dongle. An AUR install already
-has the rule at `/usr/lib/udev/rules.d/70-gsp370.rules`; reinstall the package
-instead of copying from a source tree. Replug the dongle after installing the
-rule so the seat ACL is applied.
+An AUR install already has the rule at `/usr/lib/udev/rules.d/70-gsp370.rules`;
+reinstall the package instead of copying from a source tree. Replug the dongle
+after installing the rule so the seat ACL is applied.
 
-If your system does not apply logind seat ACLs, add your user to `uucp` and log
-out and back in:
+If your system does not apply logind seat ACLs, find the available group and
+add your user to it:
 
 ```bash
-sudo usermod -aG uucp "$USER"
+getent group uucp    # Arch usually
+getent group dialout # Debian/Ubuntu/Fedora/openSUSE usually
+sudo usermod -aG dialout "$USER"  # use uucp on Arch if that is the group
 ```
 
-Check the result with `id -nG`. See
+Log out and back in, then check with `id -nG`. Do not hard-code a group without
+checking `getent` on the target system. See
 [Troubleshooting](troubleshooting.md#permission-denied) if the port still
 cannot be opened.
 
@@ -190,7 +207,7 @@ cannot be opened.
 ### AUR package
 
 ```bash
-yay -Rns gsp370-tray
+paru -Rns gsp370-tray
 # or
 sudo pacman -Rns gsp370-tray
 ```
@@ -198,26 +215,42 @@ sudo pacman -Rns gsp370-tray
 The package removes its files and the udev rule. Your settings and autostart
 entry are not package-owned, so they remain.
 
-### Source install
+### Prebuilt archive
+
+Run the uninstaller from the unpacked archive:
 
 ```bash
-sudo ./scripts/uninstall.sh
+./uninstall.sh
 ```
 
-The script removes the installed binary, desktop entry, icon, documentation,
-font licence, Plasma widget and udev rule. It deliberately leaves your settings
-and autostart entry:
+The v2.2.2 archive predates `uninstall.sh`; remove its files using the manual
+steps in that archive's `INSTALL.txt`.
+
+### Source install
+
+Run the uninstaller as your normal user; it asks for sudo only for system
+files:
+
+```bash
+./scripts/uninstall.sh
+```
+
+It reads `/usr/local/share/gsp370-tray/install-manifest.txt`, removes exactly
+the files listed there (or falls back to the standard paths if the manifest is
+missing), removes the app's autostart entry, and deletes only now-empty
+app-specific directories. It does not use `rm -rf` on directories it did not
+create.
+
+Your config is kept:
 
 ```text
 ~/.config/gsp370-tray/config
-~/.config/autostart/gsp370-tray.desktop
 ```
 
-Remove those manually if you want a completely clean uninstall:
+Remove it manually if you want a completely clean uninstall:
 
 ```bash
 rm -rf ~/.config/gsp370-tray
-rm -f ~/.config/autostart/gsp370-tray.desktop
 ```
 
 The runtime status cache is temporary; it is removed by the session or can be

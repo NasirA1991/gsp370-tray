@@ -161,8 +161,8 @@ The config is a two-key `key=value` file:
 `sidetone` is the last value saved by the tray menu; `alerts` controls
 low-battery notifications. The parser is deliberately small and the file is
 rewritten atomically. The start-at-login menu item writes or removes an XDG
-autostart entry whose `Exec=` is the current executable path. Neither file is
-owned by the package, so uninstalling leaves user settings in place.
+autostart entry whose `Exec=` is the current executable path. The source and
+prebuilt uninstallers remove that autostart entry but keep the config.
 
 Low-battery notifications invoke `notify-send`; failure to start it is
 non-fatal. Notifications are evaluated in the serial worker only when the
@@ -175,13 +175,17 @@ The project has three installation paths:
 - **AUR**: `packaging/aur/PKGBUILD.in` is rendered by the release workflow with
   the new version and source checksum, then committed to the AUR repository.
 - **Prebuilt archive**: the release workflow builds a binary bundle containing
-  `INSTALL.txt`, the desktop files, udev rule, widget, docs and licences.
+  `install.sh`, `uninstall.sh`, `INSTALL.txt`, the desktop files, udev rule,
+  widget, docs and licences.
 - **Source**: `scripts/install.sh` builds as the user and re-runs itself under
-  sudo to install into `/usr/local`.
+  sudo to install into `/usr/local`; it writes
+  `share/gsp370-tray/install-manifest.txt` for the uninstaller.
 
-`packaging/70-gsp370.rules` grants the active seat access (`uaccess`) and sets
-the `uucp` group fallback. The AUR install hook reloads udev. The widget is
-installed under `share/plasma/plasmoids/` and is optional.
+`packaging/70-gsp370.rules` grants the active seat access (`uaccess`) and tells
+ModemManager to ignore the dongle. It deliberately leaves the distribution's
+default tty group alone; the installer detects `uucp` or `dialout` only for
+non-logind guidance. The AUR install hook reloads udev. The widget is installed
+under `share/plasma/plasmoids/` and is optional.
 
 The release workflow is tag-driven:
 

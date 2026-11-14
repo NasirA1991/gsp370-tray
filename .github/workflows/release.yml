@@ -76,23 +76,28 @@ jobs:
           cp -a packaging/plasmoid/gsp370battery "$BUNDLE/"
           cp README.md CONTRIBUTING.md SECURITY.md CHANGELOG.md LICENSE \
              rust/assets/NotoSans-OFL.txt "$BUNDLE/"
+          cp scripts/install.sh scripts/uninstall.sh "$BUNDLE/"
           cp docs/*.md docs/tray-icon.png "$BUNDLE/docs/"
           mkdir -p "$BUNDLE/docs/screenshots"
           cp docs/screenshots/*.png "$BUNDLE/docs/screenshots/"
           cat > "$BUNDLE/INSTALL.txt" <<EOF
-          GSP 370 Tray $VERSION - manual install (x86_64)
+          GSP 370 Tray $VERSION - prebuilt x86_64 bundle
 
-            sudo install -Dm755 gsp370-tray /usr/local/bin/gsp370-tray
-            sudo install -Dm644 gsp370-tray.desktop /usr/local/share/applications/gsp370-tray.desktop
-            sudo install -Dm644 gsp370-tray.svg /usr/local/share/icons/hicolor/scalable/apps/gsp370-tray.svg
-            sudo install -Dm644 70-gsp370.rules /etc/udev/rules.d/70-gsp370.rules
-            sudo install -d /usr/local/share/plasma/plasmoids/org.nasir.gsp370battery
-            sudo cp -a gsp370battery/. /usr/local/share/plasma/plasmoids/org.nasir.gsp370battery/
-            sudo udevadm control --reload-rules
-            sudo udevadm trigger --action=add /sys/class/tty/ttyACM0  # replace 0 if your dongle is elsewhere
+          Run the installer from this directory:
 
-          Run `gsp370-tray` and click the tray icon.  Replug the dongle once if the
-          port permission is not picked up immediately.
+              ./install.sh
+
+          It installs the binary, desktop entry, icon, udev rule, Plasma widget
+          (when Plasma 6 is present) and documentation under /usr/local, and
+          writes an install manifest.  It asks for sudo only for system files.
+
+          Uninstall with:
+
+              ./uninstall.sh
+
+          The uninstaller removes the autostart entry and keeps your config.
+          See README.md and docs/installation.md for manual paths and
+          troubleshooting.
           EOF
           tar --sort=name --mtime='2026-01-01 00:00:00 UTC' \
             --owner=0 --group=0 --numeric-owner \

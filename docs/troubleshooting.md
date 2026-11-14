@@ -95,30 +95,37 @@ getfacl /dev/ttyACM0 2>/dev/null
 udevadm info --query=all --name=/dev/ttyACM0 | grep -E 'ID_VENDOR_ID|ID_MODEL_ID|TAG|GROUP|MODE'
 ```
 
-The expected rule tags the device with `uaccess`, sets group `uucp`, mode
-`0660`, and tells ModemManager to ignore it. AUR installs the rule in
-`/usr/lib/udev/rules.d`; `scripts/install.sh` installs it in
-`/etc/udev/rules.d`. Reload and re-apply it after installation or repair:
+The expected rule tags the device with `uaccess` and tells ModemManager to
+ignore it. It deliberately does not set `GROUP` or `MODE`, because Arch uses
+`uucp` while Debian, Ubuntu, Fedora and openSUSE usually use `dialout`. AUR
+installs the rule in `/usr/lib/udev/rules.d`; `scripts/install.sh` installs it
+in `/etc/udev/rules.d`. Reload and re-apply it after installation or repair:
 
 ```bash
 sudo udevadm control --reload-rules
-sudo udevadm trigger --action=add /sys/class/tty/ttyACM0
+sudo udevadm trigger --subsystem-match=tty
 ```
 
-Then unplug and replug the dongle. The trigger path must match the actual tty
-node (`ttyACM1`, and so on).
+Then unplug and replug the dongle.
 
-If your system does not apply logind seat ACLs, use the group fallback and log
-out and back in:
+If your system does not apply logind seat ACLs, find the available tty group
+and add your user to it, then log out and back in:
 
 ```bash
-sudo usermod -aG uucp "$USER"
+getent group uucp
+getent group dialout
+sudo usermod -aG dialout "$USER"  # use uucp on Arch if that is the group
 id -nG
 ```
 
-`id -nG` must list `uucp` in the new session. Running the app with `sudo` is not
-a supported workaround; it can create root-owned settings and does not fix the
-desktop session's access.
+`id -nG` must list the chosen group in the new session. Running the app with
+`sudo` is not a supported workaround; it can create root-owned settings and does
+not fix the desktop session's access.
+
+If the dongle is detected but ModemManager is probing it, check that
+`70-gsp370.rules` is installed and loads before
+`77-mm-usb-device-blacklist.rules`. The supplied rule sets
+`ID_MM_DEVICE_IGNORE` and `ID_MM_CANDIDATE="0"`.
 
 If you installed both the AUR package and a source build, remove the unused
 copy so there is only one binary and one rule. See

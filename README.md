@@ -62,7 +62,7 @@ is dismissed when the menu opens.*
   headset models are not supported.
 - Read/write access to the dongle's CDC-ACM serial interface. The packaged
   udev rule grants this to the active seat; systems without logind can use the
-  `uucp` group instead.
+  distribution's tty group (`uucp` on Arch, usually `dialout` elsewhere).
 - A running D-Bus session for StatusNotifierItem.
 
 **Optional**
@@ -70,6 +70,21 @@ is dismissed when the menu opens.*
 - `notify-send` from `libnotify` for low-battery notifications. The app works
   without it; only the notifications are skipped.
 - KDE Plasma 6 and `plasma-workspace` for the optional panel widget.
+- `pkexec` (polkit) for **Fix device permissions…** in the tray menu. Without
+  it, the menu still shows the manual udev commands.
+
+Desktop support: KDE Plasma 6 works out of the box. GNOME needs the AppIndicator
+and KStatusNotifierItem Support extension; other desktops need a working
+StatusNotifierItem host.
+
+Runtime packages for notifications and the optional widget:
+
+| Distribution | `notify-send` | Plasma widget |
+|---|---|---|
+| Arch / CachyOS | `libnotify` | `plasma-workspace` |
+| Debian / Ubuntu | `libnotify-bin` | `plasma-workspace` |
+| Fedora | `libnotify` | `plasma-workspace` |
+| openSUSE | `libnotify-tools` | `plasma-workspace` |
 
 ## Install
 
@@ -91,7 +106,7 @@ uninstallation.
 
 Download the latest archive and `SHA256SUMS` from
 [GitHub Releases](https://github.com/NasirA1991/gsp370-tray/releases), verify
-the archive, unpack it, and follow the included `INSTALL.txt`:
+the archive, unpack it, and run the included installer:
 
 ```bash
 VERSION=2.2.2  # replace with the latest release
@@ -99,10 +114,18 @@ curl -fLO "https://github.com/NasirA1991/gsp370-tray/releases/download/v$VERSION
 curl -fLO "https://github.com/NasirA1991/gsp370-tray/releases/download/v$VERSION/SHA256SUMS"
 sha256sum -c --ignore-missing SHA256SUMS
 tar -xzf "gsp370-tray-$VERSION-x86_64.tar.gz"
+cd "gsp370-tray-$VERSION"
+./install.sh
 ```
 
-The archive contains the binary, desktop file, icon, udev rule, Plasma widget,
-documentation and licences. The prebuilt binary is for x86_64 Linux.
+The archive contains the binary, installer, desktop file, icon, udev rule,
+Plasma widget, documentation and licences. The prebuilt binary is for x86_64
+Linux. The installer asks for sudo only for system files and writes an install
+manifest.
+
+> The published v2.2.2 archive predates this installer; use the manual
+> `INSTALL.txt` in that archive. Archives built from this revision include
+> `install.sh` and `uninstall.sh`.
 
 ### Build from source
 
@@ -120,9 +143,19 @@ install under `/usr/local`. It also installs the desktop files, Plasma widget
 and udev rule. Use `PREFIX=/usr ./scripts/install.sh` to install somewhere
 else. The normal installer should not be started with `sudo`;
 `sudo ./scripts/install.sh --system` is only for installing a binary you have
-already built.
+already built. With a custom `PREFIX`, the installer puts the udev rule under
+`$PREFIX/lib/udev/rules.d`, which udev does not read; use the tray's
+**Fix device permissions…** action or install the rule under `/etc/udev/rules.d`
+manually.
 
-For the full source-build and manual-install instructions, see
+### Uninstall
+
+- AUR: `paru -Rns gsp370-tray` (or `sudo pacman -Rns gsp370-tray`).
+- Prebuilt archive or source install: `./uninstall.sh` (or
+  `./scripts/uninstall.sh` from a checkout), run as your normal user. It uses
+  the install manifest, removes the autostart entry, and keeps your config.
+
+For the full source-build, manual-install and uninstall details, see
 [Installation](docs/installation.md).
 
 ## Usage
@@ -214,11 +247,16 @@ gsp370-tray --status
 distinguishes `off` (dongle working, headset not reachable) from `no-dongle`,
 `permission`, `error` and `unknown`.
 
-If `--status` reports `permission`, install the udev rule and replug the
-dongle. The AUR and source commands, the `uucp` fallback and full diagnostic
-steps are in [Troubleshooting](docs/troubleshooting.md#permission-denied) and
+If `--status` reports `permission`, use **Fix device permissions…** in the tray
+menu or install the udev rule and replug the dongle. The AUR/source commands,
+the detected `uucp`/`dialout` fallback and full diagnostic steps are in
+[Troubleshooting](docs/troubleshooting.md#permission-denied) and
 [Installation](docs/installation.md#dongle-permissions). Do not run the tray
 itself as root.
+
+If the dongle works but ModemManager keeps probing it, check that the udev rule
+is installed and that it is loaded before `77-mm-usb-device-blacklist.rules`.
+The supplied rule sets `ID_MM_DEVICE_IGNORE` and is named `70-gsp370.rules`.
 
 If the tray icon is missing, confirm that a StatusNotifierItem host is running
 and look in the system tray's overflow menu. A desktop without SNI support
